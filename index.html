@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AirBand XR – Manos + Cara → Música en tiempo real</title>
+<style>
+  :root{
+    --bg:#0b0f14; --panel:#121923; --ink:#e6f0ff; --muted:#91a0b4;
+    --acc:#5dd6ff; --ok:#44d19f; --warn:#ffc857; --err:#ff6b6b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:linear-gradient(180deg,#0b0f14, #0f1520 40%, #0b0f14);
+       color:var(--ink);font:500 15px/1.45 system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial;}
+  header{position:sticky;top:0;background:rgba(15,21,32,.8);backdrop-filter:blur(8px);
+         border-bottom:1px solid #1e2a3a;z-index:10}
+  .wrap{max-width:1200px;margin:0 auto;padding:14px 16px;display:grid;gap:12px}
+  .controls{display:grid;gap:10px;grid-template-columns:repeat(12,1fr);align-items:center}
+  .controls > *{min-width:0}
+  .brand{grid-column:span 3;display:flex;gap:10px;align-items:center}
+  .brand b{font-size:18px}
+  .btn{appearance:none;border:none;border-radius:12px;padding:10px 14px;font-weight:700;
+       background:linear-gradient(180deg,#20a4f3,#1282d6);color:white;cursor:pointer}
+  .btn[disabled]{opacity:.4;cursor:not-allowed}
+  .select, .range, .toggle{
+    background:var(--panel);border:1px solid #1e2a3a;color:var(--ink);border-radius:12px;padding:8px 10px}
+  .select{width:100%}
+  .range{padding:6px 10px}
+  .row{display:flex;gap:10px;align-items:center}
+  .tag{font-size:12px;color:var(--muted)}
+  main{display:grid;grid-template-columns:1.2fr .8fr;gap:14px;max-width:1200px;margin:14px auto;padding:0 16px}
+  .stage{position:relative;border-radius:16px;overflow:hidden;border:1px solid #1e2a3a;background:#0a0f16}
+  video, canvas{display:block;width:100%;height:auto}
+  canvas{position:absolute;inset:0}
+  .hud{position:absolute;left:12px;bottom:12px;display:flex;gap:8px;flex-wrap:wrap}
+  .pill{padding:6px 10px;border-radius:999px;background:#0e1522;border:1px solid #1e2a3a;color:#cfe2ff;font-size:12px}
+  .panel{background:var(--panel);border:1px solid #1e2a3a;border-radius:16px;padding:12px}
+  h3{margin:6px 0 10px 0;font-size:14px;color:#cfe2ff;text-transform:uppercase;letter-spacing:.1em}
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+  .small{font-size:12px;color:var(--muted)}
+  .kbd{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;background:#0d1626;border:1px solid #1e2a3a;padding:2px 6px;border-radius:6px;color:#d6e9ff}
+  footer{color:#9db0c8;text-align:center;font-size:12px;margin:20px 0 40px}
+  details{border:1px dashed #27405d;border-radius:12px;padding:8px}
+  summary{cursor:pointer}
+  .status-dot{display:inline-block;width:10px;height:10px;border-radius:50%}
+  .ok{background:var(--ok)} .err{background:var(--err)} .warn{background:var(--warn)}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap controls">
+    <div class="brand">
+      <span class="status-dot warn" id="camStatus"></span>
+      <b>AirBand XR</b>
+      <span class="tag">Webcam → Gestos → Sonido en tiempo real</span>
+    </div>
+    <button id="startBtn" class="btn">Iniciar cámara & audio</button>
+
+    <div class="row" style="grid-column: span 3">
+      <label class="tag">Instrumento mano izquierda</label>
+      <select id="leftInstrument" class="select">
+        <option>Sintetizador</option><option>Piano</option><option>Guitarra</option>
+        <option>Violín</option><option>Brass</option><option>Órgano</option>
+      </select>
+    </div>
+    <div class="row" style="grid-column: span 3">
+      <label class="tag">Instrumento mano derecha</label>
+      <select id="rightInstrument" class="select">
+        <option>Sintetizador</option><option>Piano</option><option>Guitarra</option>
+        <option>Violín</option><option>Brass</option><option>Órgano</option>
+      </select>
+    </div>
+    <div class="row" style="grid-column: span 3">
+      <label class="tag">Escala</label>
+      <select id="scaleRoot" class="select">
+        <option value="C4">Do (C4)</option><option value="D4">Re (D4)</option>
+        <option value="E4">Mi (E4)</option><option value="F4">Fa (F4)</option>
+        <option value="G3">Sol (G3)</option><option value="A3">La (A3)</option>
+        <option value="B3">Si (B3)</option>
+      </select>
+      <select id="scaleType" class="select">
+        <option value="major">Mayor</option>
+        <option value="minor">Menor</option>
+        <option value="pentatonic">Pentatónica</option>
+        <option value="blues">Blues</option>
+      </select>
+    </div>
+    <div class="row" style="grid-column: span 3">
+      <label class="tag">Volumen</label>
+      <input id="volume" class="range" type="range" min="0" max="1" step="0.01" value="0.8" />
+      <label class="tag">Latencia</label>
+      <select id="perfMode" class="select">
+        <option value="balanced">Balanceada</option>
+        <option value="speed">Máxima velocidad</option>
+        <option value="quality">Máxima precisión</option>
+      </select>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="stage">
+    <video id="webcam" autoplay playsinline muted></video>
+    <canvas id="overlay"></canvas>
+    <div class="hud" id="hud"></div>
+  </section>
+
+  <section class="panel">
+    <h3>Gestos → Sonidos</h3>
+    <div class="grid">
+      <div>
+        <p class="small">
+          <b>Dedos (por mano):</b> Pulgar, Índice, Medio, Anular y Meñique activan 5 grados de la escala seleccionada.
+          Mover el dedo <i>verticalmente</i> cambia el tono (± 12 semitonos). Cerrar la mano apaga las notas.
+        </p>
+        <p class="small">
+          <b>Muñeca/“brazo”:</b> la altura de la muñeca modula el volumen (mano arriba = más fuerte).
+        </p>
+      </div>
+      <div>
+        <p class="small"><b>Percusión con la cara (blendshapes MediaPipe):</b></p>
+        <ul class="small">
+          <li><span class="kbd">Blink ambos</span> → Bombo</li>
+          <li><span class="kbd">Guiño izq</span> → Hi-hat cerrado</li>
+          <li><span class="kbd">Guiño der</span> → Hi-hat abierto</li>
+          <li><span class="kbd">Boca abierta</span> → Caja</li>
+          <li><span class="kbd">Lengua fuera</span> → Crash</li>
+        </ul>
+      </div>
+    </div>
+    <details style="margin-top:10px">
+      <summary>Opciones avanzadas</summary>
+      <div class="grid" style="margin-top:8px">
+        <div>
+          <label class="tag">Espejar video</label>
+          <select id="mirror" class="select"><option value="1">Sí (recomendado)</option><option value="0">No</option></select>
+        </div>
+        <div>
+          <label class="tag">Dibujar landmarks</label>
+          <select id="draw" class="select"><option value="1">Sí</option><option value="0">No</option></select>
+        </div>
+      </div>
+      <p class="small" style="margin-top:8px">
+        Consejo: para menor latencia usa <b>Máxima velocidad</b> y baja la resolución de la cámara en <i>Iniciar</i>.
+      </p>
+    </details>
+  </section>
+</main>
+
+<footer>
+  Hecho con MediaPipe Tasks (Hands & Face Landmarker) + WebAudio. Funciona local en tu navegador; no sube video a ningún servidor.
+</footer>
+
+<script type="module">
+/* =========================
+   Imports de MediaPipe Tasks
+   ========================= */
+import {
+  FilesetResolver,
+  HandLandmarker,
+  FaceLandmarker,
+  DrawingUtils
+} from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest";
+
+/* URLs oficiales de modelos (Google Storage) */
+const HAND_MODEL_URL = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task";
+const FACE_MODEL_URL = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task";
+
+/* ==============
+   Elementos UI
+   ============== */
+const startBtn = document.getElementById('startBtn');
+const camStatus = document.getElementById('camStatus');
+const webcamEl  = document.getElementById('webcam');
+const canvas    = document.getElementById('overlay');
+const ctx       = canvas.getContext('2d');
+const hud       = document.getElementById('hud');
+
+const leftInstrument  = document.getElementById('leftInstrument');
+const rightInstrument = document.getElementById('rightInstrument');
+const scaleRoot = document.getElementById('scaleRoot');
+const scaleType = document.getElementById('scaleType');
+const volume = document.getElementById('volume');
+const perfMode = document.getElementById('perfMode');
+const mirrorSel = document.getElementById('mirror');
+const drawSel   = document.getElementById('draw');
+
+/* =====================
+   Audio: motor sencillo
+   ===================== */
+const AudioEngine = (() => {
+  const AC = window.AudioContext || window.webkitAudioContext;
+  const ctx = new AC({ latencyHint: 'interactive' });
+  const master = ctx.createGain(); master.gain.value = 0.8; master.connect(ctx.destination);
+  const limiter = ctx.createDynamicsCompressor();
+  limiter.threshold.value = -8; limiter.knee.value = 14; limiter.ratio.value = 12;
+  limiter.attack.value = 0.002; limiter.release.value = 0.09; limiter.connect(master);
+
+  const globals = { ctx, master: limiter };
+
+  // Escalas
+  const noteFreq = (note) => {
+    const A4 = 440;
+    const map = {C:0, 'C#':1, Db:1, D:2, 'D#':3, Eb:3, E:4, F:5, 'F#':6, Gb:6, G:7, 'G#':8, Ab:8, A:9, 'A#':10, Bb:10, B:11};
+    const m = note.match(/^([A-G]#?|Bb|Db|Gb)(\d)$/);
+    const n = map[m[1]]; const o = parseInt(m[2],10);
+    const semisFromA4 = n - 9 + (o - 4)*12;
+    return A4 * Math.pow(2, semisFromA4/12);
+  };
+  const buildScale = (root="C4", type="major")=>{
+    const intervals = {
+      major:[0,2,4,5,7,9,11,12],
+      minor:[0,2,3,5,7,8,10,12],
+      pentatonic:[0,2,4,7,9,12],
+      blues:[0,3,5,6,7,10,12]
+    }[type] || [0,2,4,5,7,9,11,12];
+
+    // convertir root a número semitonos
+    const baseTable = {'C':0,'C#':1,'D':2,'D#':3,'E':4,'F':5,'F#':6,'G':7,'G#':8,'A':9,'A#':10,'B':11,'Bb':10,'Db':1,'Gb':6,'Ab':8,'Eb':3};
+    const mm = root.match(/^([A-G]#?|Bb|Db|Gb)(\d)$/);
+    const base = baseTable[mm[1]]; const octave = parseInt(mm[2],10);
+    const toNote=(semi)=>{
+      const names = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+      let total = base + semi + (octave*12);
+      if(total<0) total=0;
+      const name = names[(total%12+12)%12];
+      const oct  = Math.floor(total/12);
+      return `${name}${oct}`;
+    };
+    return intervals.map(i=>toNote(i));
+  };
+
+  // Síntesis por instrumentos (sencillos)
+  const createVoice = (type="Sintetizador", dest=globals.master) => {
+    const o = {};
+    o.gain = ctx.createGain(); o.gain.gain.value = 0; o.gain.connect(dest);
+    o.filter = ctx.createBiquadFilter(); o.filter.type='lowpass'; o.filter.frequency.value = 16000; o.filter.Q.value=0.7;
+    o.filter.connect(o.gain);
+
+    o.osc = ctx.createOscillator(); o.osc.type='sawtooth'; o.osc.frequency.value = 220; o.osc.start();
+    o.osc2 = ctx.createOscillator(); o.osc2.type='square'; o.osc2.frequency.value = 220; o.osc2.start();
+    o.mix = ctx.createGain(); o.mix.gain.value = .7;
+
+    const buf = ctx.createBuffer(1, ctx.sampleRate*2, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for(let i=0;i<data.length;i++) data[i]=Math.random()*2-1;
+    const noise = ctx.createBufferSource(); noise.buffer=buf; noise.loop=true; noise.start();
+    o.noiseGain = ctx.createGain(); o.noiseGain.gain.value = 0;
+
+    o.osc.connect(o.mix); o.osc2.connect(o.mix);
+    noise.connect(o.noiseGain);
+    o.mix.connect(o.filter); o.noiseGain.connect(o.filter);
+
+    const presets = {
+      "Sintetizador": ()=>{ o.osc.type='sawtooth'; o.osc2.type='square'; o.filter.frequency.value=12000 },
+      "Piano": ()=>{ o.osc.type='triangle'; o.osc2.type='square'; o.filter.frequency.value=6000 },
+      "Guitarra": ()=>{ o.osc.type='sawtooth'; o.osc2.type='sawtooth'; o.filter.frequency.value=4200 },
+      "Violín": ()=>{ o.osc.type='sawtooth'; o.osc2.type='sawtooth'; o.filter.frequency.value=8000 },
+      "Brass": ()=>{ o.osc.type='square'; o.osc2.type='square'; o.filter.frequency.value=5000 },
+      "Órgano": ()=>{ o.osc.type='square'; o.osc2.type='triangle'; o.filter.frequency.value=10000 },
+    };
+    (presets[type]||presets["Sintetizador"])();
+
+    o.setFreq = (f)=>{
+      o.osc.frequency.exponentialRampToValueAtTime(Math.max(20,f), ctx.currentTime+0.01);
+      o.osc2.frequency.exponentialRampToValueAtTime(Math.max(20,f*0.999), ctx.currentTime+0.01);
+    };
+    o.env = (target=0.6, a=0.01, d=0.08, s=0.5, r=0.1)=>{
+      const now = ctx.currentTime;
+      o.gain.gain.cancelScheduledValues(now);
+      o.gain.gain.setValueAtTime(o.gain.gain.value, now);
+      o.gain.gain.linearRampToValueAtTime(target, now+a);
+      o.gain.gain.linearRampToValueAtTime(target*s, now+a+d);
+    };
+    o.release = (r=0.12)=>{
+      const now=ctx.currentTime;
+      o.gain.gain.cancelScheduledValues(now);
+      o.gain.gain.setTargetAtTime(0, now, r);
+    };
+    o.strike = (tone=440, velo=1)=>{
+      o.setFreq(tone);
+      o.noiseGain.gain.cancelScheduledValues(ctx.currentTime);
+      o.noiseGain.gain.setValueAtTime(0.07*velo, ctx.currentTime);
+      o.noiseGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+0.06);
+      o.env(Math.min(0.8, 0.35+0.5*velo), 0.005, 0.07, 0.6, 0.15);
+    };
+    return o;
+  };
+
+  // Percusión sintetizada
+  const Drums = (()=> {
+    const kick = (vel=1)=>{
+      const osc = ctx.createOscillator(); osc.type='sine';
+      const g = ctx.createGain(); g.gain.value=0.0001;
+      osc.frequency.setValueAtTime(120, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(45, ctx.currentTime+0.15);
+      g.gain.setValueAtTime(0.9*vel, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime+0.18);
+      osc.connect(g); g.connect(globals.master); osc.start(); osc.stop(ctx.currentTime+0.22);
+    };
+    const snare = (vel=1)=>{
+      const noiseBuf = ctx.createBuffer(1, ctx.sampleRate*0.5, ctx.sampleRate);
+      const data = noiseBuf.getChannelData(0);
+      for(let i=0;i<data.length;i++) data[i]=Math.random()*2-1;
+      const noise = ctx.createBufferSource(); noise.buffer=noiseBuf;
+      const bp = ctx.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=2500; bp.Q.value=0.5;
+      const g = ctx.createGain(); g.gain.value=0.9*vel;
+      noise.connect(bp); bp.connect(g); g.connect(globals.master);
+      noise.start(); g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime+0.18);
+      noise.stop(ctx.currentTime+0.2);
+    };
+    const hihat = (open=false, vel=1)=>{
+      const noiseBuf = ctx.createBuffer(1, ctx.sampleRate*0.4, ctx.sampleRate);
+      const data = noiseBuf.getChannelData(0);
+      for(let i=0;i<data.length;i++) data[i]=Math.random()*2-1;
+      const noise = ctx.createBufferSource(); noise.buffer=noiseBuf;
+      const hp = ctx.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=7000; hp.Q.value=0.7;
+      const g = ctx.createGain(); g.gain.value=0.6*vel;
+      noise.connect(hp); hp.connect(g); g.connect(globals.master);
+      noise.start();
+      const dur = open ? 0.35 : 0.08;
+      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime+dur);
+      noise.stop(ctx.currentTime+dur+0.02);
+    };
+    const crash = (vel=1)=>{
+      const noiseBuf = ctx.createBuffer(1, ctx.sampleRate*1.4, ctx.sampleRate);
+      const data = noiseBuf.getChannelData(0);
+      for(let i=0;i<data.length;i++) data[i]=Math.random()*2-1;
+      const noise = ctx.createBufferSource(); noise.buffer=noiseBuf;
+      const bp = ctx.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=5000; bp.Q.value=0.3;
+      const g = ctx.createGain(); g.gain.value=0.5*vel;
+      noise.connect(bp); bp.connect(g); g.connect(globals.master);
+      noise.start();
+      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime+0.8);
+      noise.stop(ctx.currentTime+0.85);
+    };
+    return { kick, snare, hihat, crash };
+  })();
+
+  return {
+    ctx, master,
+    setVolume(v){ master.gain.value = v; },
+    buildScale, noteFreq,
+    createVoice,
+    drums: Drums
+  };
+})();
+
+/* ======================================
+   MediaPipe: inicialización y utilidades
+   ====================================== */
+let vision, handLandmarker, faceLandmarker;
+let running = false;
+let runningMode = "VIDEO";
+let maxHands = 2;
+let mirror = true;
+let drawLandmarks = true;
+
+// Estados
+const activeVoices = {};
+const fingerMap = ["thumb","index","middle","ring","pinky"];
+const handedKey = (handedness)=> handedness.toLowerCase().startsWith("left") ? "L":"R";
+
+// Notas por dedo (grados de escala 0..4)
+let scale = AudioEngine.buildScale("C4","major");
+const fingerToDegree = { thumb:0, index:1, middle:2, ring:3, pinky:4 };
+
+// Percusión / gestos de cara (edge-trigger)
+const faceState = { blinkL:false, blinkR:false, mouth:false, tongue:false };
+
+function updateScale(){
+  scale = AudioEngine.buildScale(scaleRoot.value, scaleType.value);
+}
+scaleRoot.addEventListener('change', updateScale);
+scaleType.addEventListener('change', updateScale);
+volume.addEventListener('input', e=> AudioEngine.setVolume(parseFloat(e.target.value)));
+mirrorSel.addEventListener('change', e=> mirror = e.target.value==="1");
+drawSel.addEventListener('change', e=> drawLandmarks = e.target.value==="1");
+perfMode.addEventListener('change', ()=>{});
+
+function degreeToFreq(deg, octaveBias=0){
+  const idx = Math.min(scale.length-1, Math.max(0, deg));
+  const note = scale[idx];
+  const f = AudioEngine.noteFreq(note);
+  return f * Math.pow(2, octaveBias/12);
+}
+
+// Dedo extendido (heurística)
+function isFingerExtended(landmarks, finger, HK){
+  const idx = { thumb:[1,2,3,4], index:[5,6,7,8], middle:[9,10,11,12], ring:[13,14,15,16], pinky:[17,18,19,20] }[finger];
+  const [mcp, pip, dip, tip] = idx.map(i=> landmarks[i]);
+  if(finger === "thumb"){
+    if(HK==="R"){ return tip.x > pip.x + 0.03; }
+    else { return tip.x < pip.x - 0.03; }
+  }else{
+    return (pip.y - tip.y) > 0.035;
+  }
+}
+
+function wristGain(landmarks){
+  const w = landmarks[0];
+  return Math.min(1, Math.max(0, 1 - w.y));
+}
+
+function lerp(a,b,t){ return a + (b-a)*t; }
+const smoothY = {};
+
+/* ============================
+   Dibujo de landmarks (opcional)
+   ============================ */
+const drawUtils = new DrawingUtils(ctx);
+function drawHands(res){
+  if(!drawLandmarks) return;
+  ctx.save();
+  res?.landmarks?.forEach((lm, i)=>{
+    drawUtils.drawConnectors(lm, HandLandmarker.HAND_CONNECTIONS,{color:"#5dd6ff"});
+    drawUtils.drawLandmarks(lm, {color:"#44d19f", radius:2.2});
+    const handed = res.handedness[i][0].categoryName;
+    const w = lm[0];
+    const sx = (mirror?canvas.width - w.x*canvas.width:w.x*canvas.width);
+    const sy = w.y*canvas.height;
+    ctx.fillStyle="#0e1522cc"; ctx.fillRect(sx-30, sy-24, 64, 18);
+    ctx.strokeStyle="#1e2a3a"; ctx.strokeRect(sx-30, sy-24, 64, 18);
+    ctx.fillStyle="#cfe2ff"; ctx.font="12px system-ui";
+    ctx.fillText(`${handed}`, sx-26, sy-10);
+  });
+  ctx.restore();
+}
+function drawFace(res){
+  if(!drawLandmarks) return;
+  ctx.save();
+  res?.faceLandmarks?.forEach(lm=>{
+    drawUtils.drawLandmarks(lm, {color:"#ffc857", radius:1.8});
+  });
+  ctx.restore();
+}
+
+/* =============================
+   Lógica musical por cada mano
+   ============================= */
+function ensureVoice(key, instrument){
+  if(!activeVoices[key]){
+    activeVoices[key] = AudioEngine.createVoice(instrument);
+  }
+  return activeVoices[key];
+}
+function stopVoice(key){
+  if(activeVoices[key]){
+    activeVoices[key].release();
+  }
+}
+
+function processHands(result){
+  if(!result) return;
+  for(let i=0;i<result.handedness.length;i++){
+    const handed = result.handedness[i][0].categoryName; // "Right"/"Left"
+    const HK = handed.toLowerCase().startsWith("left") ? "L" : "R";
+    const instrument = HK==="L" ? leftInstrument.value : rightInstrument.value;
+    const lm = result.landmarks[i];
+
+    const g = wristGain(lm);
+
+    for(const finger of ["thumb","index","middle","ring","pinky"]){
+      const key = `${HK}_${finger}`;
+      const deg = { thumb:0, index:1, middle:2, ring:3, pinky:4 }[finger];
+      const tipIndex = {thumb:4,index:8,middle:12,ring:16,pinky:20}[finger];
+      const tip = lm[tipIndex];
+      const idKey = `${key}_tip`;
+      const sy = smoothY[idKey] = lerp(smoothY[idKey] ?? tip.y, tip.y, 0.35);
+
+      const pitchBias = Math.round((0.5 - sy) * 24);
+      const freq = degreeToFreq(deg, pitchBias);
+
+      const extended = isFingerExtended(lm, finger, HK);
+      if(extended){
+        const v = ensureVoice(key, instrument);
+        v.strike(freq, Math.max(0.2, g));
+        v.gain.gain.value = Math.min(0.9, (0.25 + 0.7*g));
+      }else{
+        stopVoice(key);
+      }
+    }
+  }
+}
+
+/* ==================================
+   Percusión con gestos de la CARA
+   ================================== */
+function getBlendmap(blendshapes){
+  const map = {};
+  blendshapes?.categories?.forEach(c => map[c.categoryName] = c.score);
+  return map;
+}
+function edge(prev, now, th=0.55){ return (!prev && now>th); }
+
+const faceState = { blinkL:false, blinkR:false, mouth:false, tongue:false };
+
+function processFace(result){
+  if(!result) return;
+  const bm = getBlendmap(result.faceBlendshapes?.[0] || {});
+  const blinkL  = bm["eyeBlinkLeft"]  ?? 0;
+  const blinkR  = bm["eyeBlinkRight"] ?? 0;
+  const mouthOpen = (bm["mouthOpen"] ?? 0) + (bm["jawOpen"] ?? 0)*0.5;
+  const tongue   = bm["tongueOut"] ?? 0;
+
+  if(edge(faceState.blinkL, blinkL)) AudioEngine.drums.hihat(false, 0.9);
+  if(edge(faceState.blinkR, blinkR)) AudioEngine.drums.hihat(true, 0.9);
+  if(edge(faceState.mouth, mouthOpen, 0.6)) AudioEngine.drums.snare(1.0);
+  if(edge(faceState.tongue, tongue, 0.55)) AudioEngine.drums.crash(1.0);
+
+  if( (blinkL>0.6 && blinkR>0.6) && !(faceState.blinkL && faceState.blinkR) ){
+    AudioEngine.drums.kick(1.0);
+  }
+
+  faceState.blinkL = blinkL>0.55;
+  faceState.blinkR = blinkR>0.55;
+  faceState.mouth  = mouthOpen>0.6;
+  faceState.tongue = tongue>0.55;
+
+  document.getElementById('hud').innerHTML = `
+    <span class="pill">${(blinkL>0.55?'👁️‍🗨️':'👁️')} L</span>
+    <span class="pill">${(blinkR>0.55?'👁️‍🗨️':'👁️')} R</span>
+    <span class="pill">${(mouthOpen>0.6?'🗣️ BOCA':'🙂')}</span>
+    <span class="pill">${(tongue>0.55?'👅 LENGUA':'👄')}</span>
+  `;
+}
+
+/* ===========================
+   Bucle de video + inferencia
+   =========================== */
+let lastInfer = 0;
+const SPEEDS = { speed:1/45, balanced:1/30, quality:1/20 };
+
+async function loop(){
+  if(!running) return;
+  const now = performance.now()/1000;
+  const minDelta = SPEEDS[perfMode.value] || SPEEDS.balanced;
+  if(now - lastInfer >= minDelta){
+    lastInfer = now;
+
+    const ts = performance.now();
+    const hands = await handLandmarker.detectForVideo(webcamEl, ts);
+    const face  = await faceLandmarker.detectForVideo(webcamEl, ts);
+
+    ctx.clearRect(0,0,canvas.width, canvas.height);
+    if(drawLandmarks){ drawHands(hands); drawFace(face); }
+
+    processHands(hands);
+    processFace(face);
+  }
+  requestAnimationFrame(loop);
+}
+
+/* ===========================
+   Arranque / cámara / modelos
+   =========================== */
+async function setupCamera(){
+  const stream = await navigator.mediaDevices.getUserMedia({
+    video: { width:{ideal:1280}, height:{ideal:720}, frameRate:{ideal:60, max:60} },
+    audio: false
+  });
+  webcamEl.srcObject = stream;
+  await webcamEl.play();
+
+  const vw = webcamEl.videoWidth, vh = webcamEl.videoHeight;
+  canvas.width = vw; canvas.height = vh;
+
+  ctx.setTransform(1,0,0,1,0,0);
+  if(mirror) ctx.translate(canvas.width,0), ctx.scale(-1,1);
+}
+
+async function loadModels(){
+  // Carga WASM desde jsDelivr
+  const wasmBase = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm";
+  vision = await FilesetResolver.forVisionTasks(wasmBase);
+
+  // Modelos desde Google Storage (oficial)
+  handLandmarker = await HandLandmarker.createFromOptions(vision, {
+    baseOptions: { modelAssetPath: HAND_MODEL_URL },
+    numHands: maxHands,
+    runningMode: "VIDEO"
+  });
+  faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
+    baseOptions: { modelAssetPath: FACE_MODEL_URL },
+    runningMode: "VIDEO",
+    numFaces: 1,
+    outputFaceBlendshapes: true,
+    outputFacialTransformationMatrixes: false
+  });
+}
+
+startBtn.addEventListener('click', async ()=>{
+  startBtn.disabled = true;
+  try{
+    await AudioEngine.ctx.resume();
+    AudioEngine.setVolume(parseFloat(volume.value));
+
+    await setupCamera();
+    await loadModels();
+    camStatus.className = "status-dot ok";
+    running = true;
+    loop();
+  }catch(err){
+    console.error(err);
+    camStatus.className = "status-dot err";
+    alert("No se pudo iniciar cámara/modelos: " + (err?.message || err));
+    startBtn.disabled = false;
+  }
+});
+
+leftInstrument.addEventListener('change', ()=>{});
+rightInstrument.addEventListener('change', ()=>{});
+window.addEventListener('resize', ()=>{
+  if(webcamEl.videoWidth){
+    canvas.width = webcamEl.videoWidth; canvas.height = webcamEl.videoHeight;
+    ctx.setTransform(1,0,0,1,0,0);
+    if(mirror) ctx.translate(canvas.width,0), ctx.scale(-1,1);
+  }
+});
+</script>
+</body>
+</html>
