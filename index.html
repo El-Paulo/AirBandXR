@@ -1,729 +1,654 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Vision Theremin</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            touch-action: manipulation;
-        }
-        .video-container {
-            position: relative;
-            width: 100%;
-            max-width: 960px;
-            aspect-ratio: 16 / 9;
-            margin: auto;
-            border-radius: 0.75rem;
-            overflow: hidden;
-            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-        }
-        #webcam, #overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            border-radius: 0.75rem;
-        }
-        #webcam {
-            object-fit: cover;
-        }
-        #hud {
-            position: absolute;
-            bottom: 1rem;
-            left: 1rem;
-            display: flex;
-            gap: 0.5rem;
-            background-color: rgba(0,0,0,0.5);
-            padding: 0.5rem;
-            border-radius: 0.5rem;
-            color: white;
-            font-size: 0.875rem;
-        }
-        .status-dot {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            display: inline-block;
-        }
-        .ok { background-color: #4ade80; }
-        .warn { background-color: #facc15; }
-        .err { background-color: #f87171; }
-    </style>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AirBand XR – Manos + Cara → Música en tiempo real</title>
+<style>
+  :root{
+    --fs: 15px; --radius: 16px; --border: #1e2a3a;
+    --bg:#0b0f14; --bg2:#0f1520; --panel:#121923; --ink:#e6f0ff; --muted:#91a0b4;
+    --acc:#5dd6ff; --ok:#44d19f; --warn:#ffc857; --err:#ff6b6b; --chip:#0e1522;
+  }
+  [data-theme="light"]{
+    --bg:#f6f8fb; --bg2:#ffffff; --panel:#ffffff; --border:#d9e1ee;
+    --ink:#101623; --muted:#5a6678; --acc:#007aff; --chip:#eef3fb;
+  }
+  @media (prefers-color-scheme: light){
+    [data-theme="system"]{
+      --bg:#f6f8fb; --bg2:#ffffff; --panel:#ffffff; --border:#d9e1ee;
+      --ink:#101623; --muted:#5a6678; --acc:#007aff; --chip:#eef3fb;
+    }
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:linear-gradient(180deg,var(--bg), var(--bg2) 40%, var(--bg));
+    color:var(--ink); font:500 var(--fs)/1.45 system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;
+  }
+  header{position:sticky;top:0;background:color-mix(in oklab, var(--panel) 80%, transparent);
+         backdrop-filter:blur(8px); border-bottom:1px solid var(--border); z-index:10}
+  .wrap{max-width:1200px;margin:0 auto;padding:14px 16px;display:grid;gap:12px}
+  .controls{display:grid;gap:10px;grid-template-columns:repeat(12,1fr);align-items:center}
+  .brand{grid-column:span 3;display:flex;gap:10px;align-items:center}
+  .brand b{font-size:calc(var(--fs) + 3px)}
+  .btn{appearance:none;border:none;border-radius:12px;padding:10px 14px;font-weight:700;
+       background:linear-gradient(180deg,#20a4f3,#1282d6);color:white;cursor:pointer}
+  .btn.secondary{background:linear-gradient(180deg,#4a5568,#2d3748)}
+  .btn.ghost{background:transparent;border:1px solid var(--border);color:var(--ink)}
+  .btn[disabled]{opacity:.4;cursor:not-allowed}
+  .select,.range{background:var(--panel);border:1px solid var(--border);color:var(--ink);border-radius:12px;padding:8px 10px}
+  .range{padding:6px 10px}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .tag{font-size:12px;color:var(--muted)}
+  .status-dot{display:inline-block;width:10px;height:10px;border-radius:50%}
+  .ok{background:var(--ok)} .err{background:var(--err)} .warn{background:var(--warn)}
+  .hint{color:var(--warn);font-size:12px}
+
+  main{display:grid;grid-template-columns:1.35fr .65fr;gap:14px;max-width:1200px;margin:14px auto;padding:0 16px}
+  .stage{
+    position:relative; border-radius:var(--radius); overflow:hidden; border:1px solid var(--border); background:#000;
+    resize: both; min-height: 420px; width: 100%; height: 520px;
+  }
+  video, canvas{display:block; width:100%; height:100%}
+  canvas{position:absolute; inset:0}
+  .hud{position:absolute;left:12px;bottom:12px;display:flex;gap:8px;flex-wrap:wrap}
+  .pill{padding:6px 10px;border-radius:999px;background:var(--chip);border:1px solid var(--border);
+        color:color-mix(in oklab, var(--ink) 90%, transparent); font-size:12px}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:12px}
+  h3{margin:6px 0 10px 0;font-size:calc(var(--fs) - 1px);color:color-mix(in oklab, var(--ink) 85%, #cfe2ff);
+     text-transform:uppercase;letter-spacing:.1em}
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+  .small{font-size:12px;color:var(--muted)}
+  .kbd{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:var(--chip);
+       border:1px solid var(--border);padding:2px 6px;border-radius:6px}
+  footer{color:color-mix(in oklab, var(--muted) 85%, transparent);text-align:center;font-size:12px;margin:20px 0 40px}
+  details{border:1px dashed color-mix(in oklab, var(--border) 80%, transparent);border-radius:12px;padding:8px}
+  summary{cursor:pointer}
+  @media (max-width: 960px){ main{grid-template-columns:1fr} .brand{grid-column:span 6} }
+</style>
 </head>
-<body class="bg-gray-900 text-gray-200 flex flex-col items-center justify-center min-h-screen p-4">
-
-    <div class="w-full max-w-5xl mx-auto">
-        <h1 class="text-3xl md:text-4xl font-bold text-center mb-2 text-white">AI Vision Theremin</h1>
-        <p id="envHint" class="text-center text-yellow-400 mb-4">Please use HTTPS or localhost to access the camera.</p>
-
-        <div class="video-container bg-gray-800">
-            <video id="webcam" autoplay playsinline></video>
-            <canvas id="overlay"></canvas>
-            <div id="hud"></div>
-        </div>
-
-        <div class="controls mt-6 p-4 bg-gray-800 rounded-xl shadow-lg">
-            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                <!-- Main Controls -->
-                <div class="flex items-center space-x-3">
-                    <button id="startBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors disabled:bg-gray-500">Start</button>
-                    <button id="stopBtn" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition-colors disabled:bg-gray-500" disabled>Stop</button>
-                    <button id="muteBtn" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold p-2 rounded-lg transition-colors">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" clip-rule="evenodd" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" /></svg>
-                    </button>
-                    <div class="flex items-center space-x-2">
-                        <span id="camStatus" class="status-dot warn" title="Camera Status"></span>
-                    </div>
-                </div>
-
-                <!-- Volume -->
-                <div class="flex items-center col-span-1 md:col-span-2">
-                    <label for="volume" class="text-sm font-medium mr-3">Volume</label>
-                    <input id="volume" type="range" min="0" max="1" step="0.01" value="0.85" class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer">
-                </div>
-                
-                <!-- Instruments -->
-                <div class="flex items-center">
-                    <label for="leftInstrument" class="text-sm font-medium mr-3">Left Hand</label>
-                    <select id="leftInstrument" class="w-full bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2"></select>
-                </div>
-                <div class="flex items-center">
-                    <label for="rightInstrument" class="text-sm font-medium mr-3">Right Hand</label>
-                    <select id="rightInstrument" class="w-full bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2"></select>
-                </div>
-                
-                <!-- Scale -->
-                <div class="flex items-center space-x-2">
-                    <label for="scaleRoot" class="text-sm font-medium">Scale</label>
-                    <select id="scaleRoot" class="w-full bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2">
-                        <option>C4</option><option>C#4</option><option>D4</option><option>D#4</option><option>E4</option><option>F4</option><option>F#4</option><option>G4</option><option>G#4</option><option>A4</option><option>A#4</option><option>B4</option>
-                    </select>
-                    <select id="scaleType" class="w-full bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2">
-                        <option value="major">Major</option><option value="minor">Minor</option><option value="pentatonic">Pentatonic</option><option value="blues">Blues</option>
-                    </select>
-                </div>
-
-                <!-- Settings -->
-                 <div class="flex items-center">
-                    <label for="perfMode" class="text-sm font-medium mr-3">Performance</label>
-                    <select id="perfMode" class="w-full bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2">
-                        <option value="speed">Speed</option><option value="balanced" selected>Balanced</option><option value="quality">Quality</option>
-                    </select>
-                </div>
-                 <div class="flex items-center">
-                    <label for="mirror" class="text-sm font-medium mr-3">Mirror</label>
-                    <select id="mirror" class="w-full bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2">
-                        <option value="1">On</option><option value="0">Off</option>
-                    </select>
-                </div>
-                 <div class="flex items-center">
-                    <label for="draw" class="text-sm font-medium mr-3">Draw</label>
-                    <select id="draw" class="w-full bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2">
-                        <option value="1">On</option><option value="0">Off</option>
-                    </select>
-                </div>
-            </div>
-        </div>
+<body data-theme="system">
+<header>
+  <div class="wrap controls">
+    <div class="brand">
+      <span class="status-dot warn" id="camStatus"></span>
+      <b>AirBand XR</b>
+      <span class="tag">Webcam → Gestos → Sonido en tiempo real</span>
     </div>
 
-    <script type="module">
-        import {
-            FilesetResolver,
-            HandLandmarker,
-            FaceLandmarker,
-            DrawingUtils
-        } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest";
+    <div class="row" style="grid-column: span 5">
+      <button id="startBtn" class="btn">Iniciar cámara & audio</button>
+      <button id="stopBtn" class="btn secondary" disabled>Detener</button>
+      <button id="muteBtn" class="btn secondary">Silencio</button>
+      <button id="recBtn" class="btn ghost" disabled>● Grabar</button>
+      <button id="recStopBtn" class="btn ghost" disabled>■ Detener grabación</button>
+      <span class="tag" id="recTimer">00:00</span>
+      <a id="recDownload" class="tag" href="#" download="airband.webm" style="display:none">Descargar 🎧</a>
+      <span class="hint" id="envHint"></span>
+    </div>
 
-        // Official model URLs (Google Storage)
-        const HAND_MODEL_URL = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task";
-        const FACE_MODEL_URL = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task";
+    <div class="row" style="grid-column: span 5">
+      <label class="tag">Tema</label>
+      <select id="themeSel" class="select">
+        <option value="system">Sistema</option>
+        <option value="dark">Oscuro</option>
+        <option value="light">Claro</option>
+      </select>
+      <label class="tag">Tamaño de letra</label>
+      <input id="fontSize" class="range" type="range" min="80" max="130" value="100" />
+      <span class="tag" id="fontVal">100%</span>
+      <label class="tag">Tamaño del escenario</label>
+      <input id="stageSize" class="range" type="range" min="60" max="140" value="100" />
+      <span class="tag" id="stageVal">100%</span>
+    </div>
 
-        /* ========= Environment Check ========= */
-        const envHint = document.getElementById('envHint');
-        if (location.protocol.startsWith('https') || location.hostname === 'localhost') {
-            envHint.style.display = 'none';
-        }
+    <div class="row" style="grid-column: span 6">
+      <label class="tag">Instrumento mano izquierda</label>
+      <select id="leftInstrument" class="select"></select>
+      <label class="tag">Instrumento mano derecha</label>
+      <select id="rightInstrument" class="select"></select>
+    </div>
 
-        /* ============== UI Elements ============== */
-        const controlsGrid = document.querySelector('.controls .grid');
-        const startBtn = document.getElementById('startBtn');
-        const stopBtn = document.getElementById('stopBtn');
-        const muteBtn = document.getElementById('muteBtn');
-        const camStatus = document.getElementById('camStatus');
-        const webcamEl = document.getElementById('webcam');
-        const canvasEl = document.getElementById('overlay');
-        const ctx = canvasEl.getContext('2d');
-        const hudEl = document.getElementById('hud');
+    <div class="row" style="grid-column: span 6">
+      <label class="tag">Escala</label>
+      <select id="scaleRoot" class="select">
+        <option value="C4">Do (C4)</option><option value="D4">Re (D4)</option>
+        <option value="E4">Mi (E4)</option><option value="F4">Fa (F4)</option>
+        <option value="G3">Sol (G3)</option><option value="A3">La (A3)</option>
+        <option value="B3">Si (B3)</option>
+      </select>
+      <select id="scaleType" class="select">
+        <option value="major">Mayor</option>
+        <option value="minor">Menor</option>
+        <option value="pentatonic">Pentatónica</option>
+        <option value="blues">Blues</option>
+      </select>
+      <label class="tag">Latencia</label>
+      <select id="perfMode" class="select">
+        <option value="balanced">Balanceada</option>
+        <option value="speed">Máxima velocidad</option>
+        <option value="quality">Máxima precisión</option>
+      </select>
+      <label class="tag">Espejo</label>
+      <select id="mirror" class="select"><option value="1">Sí</option><option value="0">No</option></select>
+      <label class="tag">Landmarks</label>
+      <select id="draw" class="select"><option value="1">Sí</option><option value="0">No</option></select>
+      <label class="tag">Volumen</label>
+      <input id="volume" class="range" type="range" min="0" max="1" step="0.01" value="0.85" />
+    </div>
 
-        const leftInstrumentEl = document.getElementById('leftInstrument');
-        const rightInstrumentEl = document.getElementById('rightInstrument');
-        const scaleRootEl = document.getElementById('scaleRoot');
-        const scaleTypeEl = document.getElementById('scaleType');
-        const volumeEl = document.getElementById('volume');
-        const perfModeEl = document.getElementById('perfMode');
-        const mirrorEl = document.getElementById('mirror');
-        const drawEl = document.getElementById('draw');
+    <div class="row" style="grid-column: span 3">
+      <label class="tag">Banco de sonidos</label>
+      <select id="soundSetSel" class="select">
+        <option value="electronico">Electrónico</option>
+        <option value="regional">Regional</option>
+      </select>
+    </div>
+  </div>
+</header>
 
-        /* ====== Sound Banks (dynamically injected) ====== */
-        const SOUND_SETS = {
-            electronic: ["Synth", "Piano", "Guitar", "Violin", "Brass", "Organ"],
-            regional: ["Accordion", "Tuba", "Trumpet", "Vihuela", "Bajo Sexto"]
-        };
-        let soundSet = localStorage.getItem('soundSet') || 'electronic';
+<main>
+  <section class="stage" id="stage">
+    <video id="webcam" autoplay playsinline muted></video>
+    <canvas id="overlay"></canvas>
+    <div class="hud" id="hud"></div>
+  </section>
 
-        // Create and inject the sound bank selector
-        const soundRow = document.createElement('div');
-        soundRow.className = 'flex items-center md:col-span-3';
-        soundRow.innerHTML = `
-          <label for="soundSetSel" class="text-sm font-medium mr-3">Sound Bank</label>
-          <select id="soundSetSel" class="w-full bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2">
-            <option value="electronic">Electronic</option>
-            <option value="regional">Regional</option>
-          </select>
-        `;
-        controlsGrid.appendChild(soundRow);
-        const soundSetSel = soundRow.querySelector('#soundSetSel');
-        soundSetSel.value = soundSet;
+  <section class="panel">
+    <h3>Gestos → Sonidos</h3>
+    <div class="grid">
+      <div>
+        <p class="small"><b>Dedos (por mano):</b> cada dedo activa un grado de la escala. Movimiento vertical del dedo = ±12 semitonos. Mano cerrada = silencio.</p>
+        <p class="small"><b>Muñeca:</b> altura modula volumen.</p>
+      </div>
+      <div>
+        <p class="small"><b>Cara (percusión):</b></p>
+        <ul class="small">
+          <li><span class="kbd">Parpadeo ambos</span> → Bombo</li>
+          <li><span class="kbd">Guiño izq</span> → Hi-hat cerrado</li>
+          <li><span class="kbd">Guiño der</span> → Hi-hat abierto</li>
+          <li><span class="kbd">Boca abierta</span> → Caja</li>
+          <li><span class="kbd">Lengua fuera</span> → Crash</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+</main>
 
-        /* ============ Global State ============ */
-        let vision, handLandmarker, faceLandmarker;
-        let isRunning = false;
-        let maxHands = 2;
-        let mirrorView = true;
-        let drawLandmarks = true;
-        let stream = null;
+<footer>
+  Hecho con MediaPipe Tasks (Hands & Face Landmarker) + WebAudio. Todo corre local en tu navegador.
+</footer>
 
-        /* ============== Audio Engine ============== */
-        const AudioEngine = (() => {
-            const AC = window.AudioContext || window.webkitAudioContext;
-            const audioCtx = new AC({ latencyHint: 'interactive' });
-            const masterGain = audioCtx.createGain();
-            masterGain.gain.value = 0.85;
-            const limiter = audioCtx.createDynamicsCompressor();
-            limiter.threshold.value = -8;
-            limiter.knee.value = 14;
-            limiter.ratio.value = 12;
-            limiter.attack.value = 0.002;
-            limiter.release.value = 0.09;
-            limiter.connect(masterGain);
-            masterGain.connect(audioCtx.destination);
+<script type="module">
+import { FilesetResolver, HandLandmarker, FaceLandmarker, DrawingUtils }
+  from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest";
 
-            // --- Musical Utilities ---
-            const noteFreq = (note) => {
-                const A4 = 440;
-                const map = { C:0, 'C#':1, Db:1, D:2, 'D#':3, Eb:3, E:4, F:5, 'F#':6, Gb:6, G:7, 'G#':8, Ab:8, A:9, 'A#':10, Bb:10, B:11 };
-                const match = note.match(/^([A-G]#?|Bb|Db|Gb)(\d)$/);
-                const n = map[match[1]];
-                const o = parseInt(match[2], 10);
-                return A4 * Math.pow(2, (n - 9 + (o - 4) * 12) / 12);
-            };
-            
-            const buildScale = (root = "C4", type = "major") => {
-                const intervals = {
-                    major: [0, 2, 4, 5, 7, 9, 11, 12],
-                    minor: [0, 2, 3, 5, 7, 8, 10, 12],
-                    pentatonic: [0, 2, 4, 7, 9, 12],
-                    blues: [0, 3, 5, 6, 7, 10, 12]
-                }[type] || [0, 2, 4, 5, 7, 9, 11, 12];
-                const baseTable = { 'C':0, 'C#':1, 'D':2, 'D#':3, 'E':4, 'F':5, 'F#':6, 'G':7, 'G#':8, 'A':9, 'A#':10, 'B':11, 'Bb':10, 'Db':1, 'Gb':6, 'Ab':8, 'Eb':3 };
-                const match = root.match(/^([A-G]#?|Bb|Db|Gb)(\d)$/);
-                const base = baseTable[match[1]];
-                const octave = parseInt(match[2], 10);
-                const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-                return intervals.map(semi => {
-                    const total = base + semi + octave * 12;
-                    return `${names[(total % 12 + 12) % 12]}${Math.floor(total / 12)}`;
-                });
-            };
+/* Modelos oficiales */
+const HAND_MODEL_URL = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task";
+const FACE_MODEL_URL = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task";
 
-            const makeLFO = (freq = 5, destParam, depth = 10, type = 'sine') => {
-                const lfo = audioCtx.createOscillator();
-                lfo.type = type;
-                lfo.frequency.value = freq;
-                const g = audioCtx.createGain();
-                g.gain.value = depth;
-                lfo.connect(g);
-                g.connect(destParam);
-                lfo.start();
-                return { lfo, g };
-            };
-            
-            // --- Instrument Presets (Refactored) ---
-            const instrumentPresets = {
-                "Synth": o => { o.osc.type='sawtooth'; o.osc2.type='square'; o.filter.frequency.value=12000; },
-                "Piano": o => { o.osc.type='triangle'; o.osc2.type='square'; o.filter.frequency.value=6000; },
-                "Guitar": o => { o.osc.type='sawtooth'; o.osc2.type='sawtooth'; o.filter.frequency.value=4200; },
-                "Violin": o => { o.osc.type='sawtooth'; o.osc2.type='sawtooth'; o.filter.frequency.value=8000; },
-                "Brass": o => { o.osc.type='square'; o.osc2.type='square'; o.filter.frequency.value=5000; },
-                "Organ": o => { o.osc.type='square'; o.osc2.type='triangle'; o.filter.frequency.value=10000; },
-                "Accordion": o => {
-                    o.osc.type='sawtooth'; o.osc2.type='sawtooth';
-                    o.detune = 8; o.osc.detune.value = -o.detune; o.osc2.detune.value = +o.detune;
-                    o.filter.frequency.value = 3500; o.filter.Q.value=0.8;
-                    o.lfo = makeLFO(5, o.gain.gain, 0.05, 'sine');
-                },
-                "Tuba": o => {
-                    o.osc.type='sine'; o.osc2.type='square';
-                    o.filter.frequency.value = 2200; o.filter.Q.value=0.7;
-                    o.envShape = {a:0.012, d:0.12, s:0.75};
-                },
-                "Trumpet": o => {
-                    o.osc.type='square'; o.osc2.type='sawtooth';
-                    o.filter.frequency.value = 7500; o.filter.Q.value=0.9;
-                    o.pitchEnv = true;
-                },
-                "Vihuela": o => {
-                    o.osc.type='triangle'; o.osc2.type='triangle';
-                    o.filter.frequency.value = 3800; o.filter.Q.value=0.9;
-                    o.pluck = true;
-                },
-                "Bajo Sexto": o => { // Same as Vihuela for this simple model
-                    o.osc.type='triangle'; o.osc2.type='triangle';
-                    o.filter.frequency.value = 3800; o.filter.Q.value=0.9;
-                    o.pluck = true;
-                }
-            };
+/* Entorno seguro */
+const envHint = document.getElementById('envHint');
+if (!location.protocol.startsWith('https') && location.hostname !== 'localhost') {
+  envHint.textContent = "Abre en HTTPS o localhost para usar la cámara.";
+}
 
-            function applyPreset(name, voiceObject) {
-                const presetFn = instrumentPresets[name];
-                if (presetFn) presetFn(voiceObject);
-            }
+/* UI */
+const themeSel = document.getElementById('themeSel');
+const fontSize = document.getElementById('fontSize');
+const fontVal  = document.getElementById('fontVal');
+const stageSize= document.getElementById('stageSize');
+const stageVal = document.getElementById('stageVal');
+const soundSetSel = document.getElementById('soundSetSel');
 
-            // --- Voice Creation ---
-            const createVoice = (instrument = "Synth", dest = limiter) => {
-                const v = {};
-                v.gain = audioCtx.createGain(); v.gain.gain.value = 0; v.gain.connect(dest);
-                v.filter = audioCtx.createBiquadFilter(); v.filter.type = 'lowpass'; v.filter.frequency.value = 12000; v.filter.Q.value = 0.7; v.filter.connect(v.gain);
-                v.osc = audioCtx.createOscillator(); v.osc2 = audioCtx.createOscillator(); v.osc.frequency.value = 220; v.osc2.frequency.value = 220; v.osc.start(); v.osc2.start();
-                v.mix = audioCtx.createGain(); v.mix.gain.value = 0.72; v.osc.connect(v.mix); v.osc2.connect(v.mix); v.mix.connect(v.filter);
+const startBtn = document.getElementById('startBtn');
+const stopBtn  = document.getElementById('stopBtn');
+const muteBtn  = document.getElementById('muteBtn');
+const camStatus= document.getElementById('camStatus');
+const webcamEl = document.getElementById('webcam');
+const canvas   = document.getElementById('overlay');
+const ctx      = canvas.getContext('2d');
+const hud      = document.getElementById('hud');
+const stageEl  = document.getElementById('stage');
 
-                const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * 2, audioCtx.sampleRate);
-                const data = buf.getChannelData(0);
-                for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
-                const noise = audioCtx.createBufferSource(); noise.buffer = buf; noise.loop = true; noise.start();
-                v.noiseGain = audioCtx.createGain(); v.noiseGain.gain.value = 0; noise.connect(v.noiseGain); v.noiseGain.connect(v.filter);
+const leftInstrument  = document.getElementById('leftInstrument');
+const rightInstrument = document.getElementById('rightInstrument');
+const scaleRoot = document.getElementById('scaleRoot');
+const scaleType = document.getElementById('scaleType');
+const volume = document.getElementById('volume');
+const perfMode = document.getElementById('perfMode');
+const mirrorSel = document.getElementById('mirror');
+const drawSel   = document.getElementById('draw');
 
-                applyPreset(instrument, v);
+const recBtn = document.getElementById('recBtn');
+const recStopBtn = document.getElementById('recStopBtn');
+const recTimer = document.getElementById('recTimer');
+const recDownload = document.getElementById('recDownload');
 
-                v.setFreq = (f) => {
-                    const now = audioCtx.currentTime;
-                    if (v.pitchEnv) {
-                        v.osc.frequency.cancelScheduledValues(now); v.osc2.frequency.cancelScheduledValues(now);
-                        v.osc.frequency.setValueAtTime(f * 1.03, now); v.osc2.frequency.setValueAtTime(f * 1.03, now);
-                        v.osc.frequency.exponentialRampToValueAtTime(Math.max(20, f), now + 0.05);
-                        v.osc2.frequency.exponentialRampToValueAtTime(Math.max(20, f), now + 0.05);
-                    } else {
-                        v.osc.frequency.exponentialRampToValueAtTime(Math.max(20, f), now + 0.01);
-                        v.osc2.frequency.exponentialRampToValueAtTime(Math.max(20, f * 0.999), now + 0.01);
-                    }
-                };
-                v.env = (target = 0.65, a = 0.008, d = 0.06, s = 0.55) => {
-                    if (v.envShape) { a = v.envShape.a; d = v.envShape.d; s = v.envShape.s; }
-                    const now = audioCtx.currentTime;
-                    v.gain.gain.cancelScheduledValues(now);
-                    v.gain.gain.linearRampToValueAtTime(target, now + a);
-                    v.gain.gain.linearRampToValueAtTime(target * s, now + a + d);
-                };
-                v.release = (r = 0.12) => {
-                    const now = audioCtx.currentTime;
-                    v.gain.gain.cancelScheduledValues(now);
-                    v.gain.gain.setTargetAtTime(0, now, r);
-                };
-                v.strike = (tone = 440, velo = 1) => {
-                    v.setFreq(tone);
-                    const now = audioCtx.currentTime;
-                    v.noiseGain.gain.cancelScheduledValues(now);
-                    if (v.pluck) {
-                        v.noiseGain.gain.setValueAtTime(0.11 * velo, now);
-                        v.noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
-                        v.env(Math.min(0.8, 0.5 + 0.4 * velo), 0.003, 0.05, 0.45);
-                    } else {
-                        v.noiseGain.gain.setValueAtTime(0.06 * velo, now);
-                        v.noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
-                        v.env(Math.min(0.8, 0.35 + 0.5 * velo), 0.004, 0.05, 0.6);
-                    }
-                };
-                return v;
-            };
+/* Banco de sonidos y “sin instrumento” */
+const SOUND_SETS = {
+  electronico: ["(Sin instrumento)","Sintetizador","Piano","Guitarra","Violín","Brass","Órgano"],
+  regional:    ["(Sin instrumento)","Acordeón","Tuba","Trompeta","Vihuela","Bajo sexto"]
+};
+let soundSet = localStorage.getItem('soundSet') || 'electronico';
+soundSetSel.value = soundSet;
 
-            // --- Percussion ---
-            const Drums = (() => {
-                const createDrumSound = (setupFn) => (vel = 1) => {
-                    const { osc, gain, filter, noise } = setupFn(vel);
-                    if(osc) osc.connect(filter || gain);
-                    if(noise) noise.connect(filter || gain);
-                    if(filter) filter.connect(gain);
-                    gain.connect(limiter);
-                    if(osc) {
-                        osc.start();
-                        osc.stop(audioCtx.currentTime + 0.5);
-                    }
-                    if(noise) {
-                        noise.start();
-                        noise.stop(audioCtx.currentTime + 0.5);
-                    }
-                };
+function setInstrumentOptions(forSet){
+  const arr = SOUND_SETS[forSet];
+  const rebuild = (sel) => {
+    const prev = sel.value;
+    sel.innerHTML = arr.map(x=>`<option>${x}</option>`).join('');
+    if (arr.includes(prev)) sel.value = prev;
+  };
+  rebuild(leftInstrument);
+  rebuild(rightInstrument);
+}
+setInstrumentOptions(soundSet);
+soundSetSel.addEventListener('change', ()=>{
+  soundSet = soundSetSel.value;
+  localStorage.setItem('soundSet', soundSet);
+  setInstrumentOptions(soundSet);
+});
 
-                const kick = createDrumSound(vel => {
-                    const osc = audioCtx.createOscillator(); osc.type = 'sine';
-                    const gain = audioCtx.createGain(); gain.gain.value = 0.0001;
-                    const f0 = (soundSet === 'regional') ? 90 : 120;
-                    const f1 = (soundSet === 'regional') ? 38 : 45;
-                    osc.frequency.setValueAtTime(f0, audioCtx.currentTime);
-                    osc.frequency.exponentialRampToValueAtTime(f1, audioCtx.currentTime + 0.18);
-                    gain.gain.setValueAtTime(0.95 * vel, audioCtx.currentTime);
-                    gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.22);
-                    return { osc, gain };
-                });
+/* Tema / fuente / tamaño escenario (persistentes) */
+function applyTheme(v){ document.body.setAttribute('data-theme', v); localStorage.setItem('theme', v); }
+function applyFont(pct){ document.documentElement.style.setProperty('--fs', (pct/100*15).toFixed(2)+'px'); fontVal.textContent = pct+'%'; localStorage.setItem('fs', pct); }
+function applyStage(pct){ stageEl.style.height = (pct/100*520) + 'px'; stageVal.textContent = pct+'%'; localStorage.setItem('stage', pct); }
+themeSel.value = localStorage.getItem('theme') || 'system'; applyTheme(themeSel.value);
+fontSize.value = localStorage.getItem('fs') || '100'; applyFont(+fontSize.value);
+stageSize.value= localStorage.getItem('stage') || '100'; applyStage(+stageSize.value);
+themeSel.addEventListener('change', e=> applyTheme(e.target.value));
+fontSize.addEventListener('input', e=> applyFont(+e.target.value));
+stageSize.addEventListener('input', e=> applyStage(+e.target.value));
 
-                const snare = createDrumSound(vel => {
-                    const noise = audioCtx.createBufferSource();
-                    const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.6, audioCtx.sampleRate);
-                    const data = buf.getChannelData(0); for(let i=0; i<data.length; i++) data[i]=Math.random()*2-1;
-                    noise.buffer = buf;
-                    const filter = audioCtx.createBiquadFilter(); filter.type = 'bandpass';
-                    filter.frequency.value = (soundSet === 'regional') ? 1800 : 2500;
-                    filter.Q.value = (soundSet === 'regional') ? 0.7 : 0.5;
-                    const gain = audioCtx.createGain(); gain.gain.value = (soundSet === 'regional') ? 1.0 * vel : 0.9 * vel;
-                    const dur = (soundSet === 'regional') ? 0.22 : 0.18;
-                    gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
-                    return { noise, filter, gain };
-                });
+/* ====== Estado global (sin duplicados) ====== */
+let vision, handLandmarker, faceLandmarker;
+let running = false;
+let maxHands = 2;
+let stream = null;
+let drawLandmarks = true;
 
-                const hihat = (open = false, vel = 1) => {
-                    const noise = audioCtx.createBufferSource();
-                    const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.5, audioCtx.sampleRate);
-                    const data = buf.getChannelData(0); for(let i=0; i<data.length; i++) data[i]=Math.random()*2-1;
-                    noise.buffer = buf;
-                    const filter = audioCtx.createBiquadFilter(); filter.type = 'highpass';
-                    filter.frequency.value = (soundSet === 'regional') ? 8000 : 7000;
-                    filter.Q.value = 0.8;
-                    const gain = audioCtx.createGain(); gain.gain.value = (soundSet === 'regional') ? 0.7 * vel : 0.6 * vel;
-                    const dur = open ? ((soundSet === 'regional') ? 0.42 : 0.35) : 0.08;
-                    gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
-                    noise.connect(filter); filter.connect(gain); gain.connect(limiter);
-                    noise.start(); noise.stop(audioCtx.currentTime + dur + 0.05);
-                };
+/* ================== Audio + Grabación ================== */
+const AudioEngine = (() => {
+  const AC = window.AudioContext || window.webkitAudioContext;
+  const ctx = new AC({ latencyHint: 'interactive' });
 
-                const crash = createDrumSound(vel => {
-                    const noise = audioCtx.createBufferSource();
-                    const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * 1.5, audioCtx.sampleRate);
-                    const data = buf.getChannelData(0); for(let i=0; i<data.length; i++) data[i]=Math.random()*2-1;
-                    noise.buffer = buf;
-                    const filter = audioCtx.createBiquadFilter(); filter.type = 'bandpass'; filter.frequency.value = 5200; filter.Q.value = 0.35;
-                    const gain = audioCtx.createGain(); gain.gain.value = 0.55 * vel;
-                    gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.9);
-                    return { noise, filter, gain };
-                });
+  const master = ctx.createGain(); master.gain.value = 0.85;
+  master.connect(ctx.destination);
 
-                return { kick, snare, hihat, crash };
-            })();
+  // Nodo para grabación
+  const recorderDest = ctx.createMediaStreamDestination();
+  master.connect(recorderDest); // todo lo que suene va también al stream de grabación
+  let mediaRecorder = null, chunks = [], recStartTs = 0, recTimerId = null;
 
-            return {
-                ctx: audioCtx,
-                setVolume(v) { masterGain.gain.value = v; },
-                buildScale, noteFreq, createVoice,
-                drums: Drums
-            };
-        })();
+  const noteFreq = (note) => {
+    const A4 = 440;
+    const map = {C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11};
+    const m = note.match(/^([A-G]#?|Bb|Db|Gb)(\d)$/); const n = map[m[1]]; const o = +m[2];
+    return A4 * Math.pow(2, (n - 9 + (o - 4)*12)/12);
+  };
+  const buildScale = (root="C4", type="major")=>{
+    const iv={major:[0,2,4,5,7,9,11,12],minor:[0,2,3,5,7,8,10,12],pentatonic:[0,2,4,7,9,12],blues:[0,3,5,6,7,10,12]}[type]||[0,2,4,5,7,9,11,12];
+    const baseTable={'C':0,'C#':1,'D':2,'D#':3,'E':4,'F':5,'F#':6,'G':7,'G#':8,'A':9,'A#':10,'B':11,'Bb':10,'Db':1,'Gb':6,'Ab':8,'Eb':3};
+    const mm=root.match(/^([A-G]#?|Bb|Db|Gb)(\d)$/); const base=baseTable[mm[1]]; const octave=+mm[2];
+    const names=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+    return iv.map(semi=>{const total=base+semi+octave*12; return `${names[(total%12+12)%12]}${Math.floor(total/12)}`;});
+  };
 
-        /* ======== Scale & Note Mapping ======== */
-        let currentScale = AudioEngine.buildScale("C4", "major");
-        const fingerToDegree = { thumb: 0, index: 1, middle: 2, ring: 3, pinky: 4 };
-        const fingerMap = ["thumb", "index", "middle", "ring", "pinky"];
+  const makeLFO=(freq=5,destParam,depth=10,type='sine')=>{
+    const lfo=ctx.createOscillator(); lfo.type=type; lfo.frequency.value=freq;
+    const g=ctx.createGain(); g.gain.value=depth; lfo.connect(g); g.connect(destParam); lfo.start(); return {lfo,g};
+  };
 
-        function degreeToFreq(degree, bias = 0) {
-            const idx = Math.min(currentScale.length - 1, Math.max(0, degree));
-            const noteName = currentScale[idx];
-            const baseFreq = AudioEngine.noteFreq(noteName);
-            return baseFreq * Math.pow(2, bias / 12);
-        }
-        function updateScale() {
-            currentScale = AudioEngine.buildScale(scaleRootEl.value, scaleTypeEl.value);
-        }
-        scaleRootEl.addEventListener('change', updateScale);
-        scaleTypeEl.addEventListener('change', updateScale);
-        volumeEl.addEventListener('input', e => AudioEngine.setVolume(parseFloat(e.target.value)));
+  function applyPreset(name,o){
+    if (name==="Sintetizador"){ o.osc.type='sawtooth'; o.osc2.type='square'; o.filter.frequency.value=12000; }
+    else if (name==="Piano"){ o.osc.type='triangle'; o.osc2.type='square'; o.filter.frequency.value=6000; }
+    else if (name==="Guitarra"){ o.osc.type='sawtooth'; o.osc2.type='sawtooth'; o.filter.frequency.value=4200; }
+    else if (name==="Violín"){ o.osc.type='sawtooth'; o.osc2.type='sawtooth'; o.filter.frequency.value=8000; }
+    else if (name==="Brass"){ o.osc.type='square'; o.osc2.type='square'; o.filter.frequency.value=5000; }
+    else if (name==="Órgano"){ o.osc.type='square'; o.osc2.type='triangle'; o.filter.frequency.value=10000; }
+    else if (name==="Acordeón"){
+      o.osc.type='sawtooth'; o.osc2.type='sawtooth'; o.filter.frequency.value=3500; o.filter.Q.value=0.8;
+      o.osc.detune.value=-8; o.osc2.detune.value=+8; o.lfo=makeLFO(5,o.gain.gain,0.05,'sine');
+    } else if (name==="Tuba"){
+      o.osc.type='sine'; o.osc2.type='square'; o.filter.frequency.value=2200; o.filter.Q.value=0.7; o.envShape={a:0.012,d:0.12,s:0.75};
+    } else if (name==="Trompeta"){
+      o.osc.type='square'; o.osc2.type='sawtooth'; o.filter.frequency.value=7500; o.filter.Q.value=0.9; o.pitchEnv=true;
+    } else if (name==="Vihuela" || name==="Bajo sexto"){
+      o.osc.type='triangle'; o.osc2.type='triangle'; o.filter.frequency.value=3800; o.filter.Q.value=0.9; o.pluck=true;
+    }
+  }
 
-        /* ======= Landmark Drawing ======= */
-        const drawingUtils = new DrawingUtils(ctx);
-        function drawHands(result) {
-            ctx.save();
-            result?.landmarks?.forEach((landmarks) => {
-                drawingUtils.drawConnectors(landmarks, HandLandmarker.HAND_CONNECTIONS, { color: "#5dd6ff", lineWidth: 3 });
-                drawingUtils.drawLandmarks(landmarks, { color: "#44d19f", radius: 4 });
-            });
-            ctx.restore();
-        }
-        function drawFace(result) {
-            ctx.save();
-            result?.faceLandmarks?.forEach(landmarks => {
-                drawingUtils.drawLandmarks(landmarks, { color: "#ffc857", radius: 1.5 });
-            });
-            ctx.restore();
-        }
+  const createVoice=(instrument="Sintetizador",dest=master)=>{
+    const o={};
+    o.gain=ctx.createGain(); o.gain.gain.value=0; o.gain.connect(dest);
+    o.filter=ctx.createBiquadFilter(); o.filter.type='lowpass'; o.filter.frequency.value=12000; o.filter.Q.value=0.7; o.filter.connect(o.gain);
+    o.osc=ctx.createOscillator(); o.osc2=ctx.createOscillator(); o.osc.frequency.value=220; o.osc2.frequency.value=220; o.osc.start(); o.osc2.start();
+    o.mix=ctx.createGain(); o.mix.gain.value=.72; o.osc.connect(o.mix); o.osc2.connect(o.mix); o.mix.connect(o.filter);
+    const buf=ctx.createBuffer(1, ctx.sampleRate*2, ctx.sampleRate); const data=buf.getChannelData(0); for(let i=0;i<data.length;i++) data[i]=Math.random()*2-1;
+    const noise=ctx.createBufferSource(); noise.buffer=buf; noise.loop=true; noise.start();
+    o.noiseGain=ctx.createGain(); o.noiseGain.gain.value=0; noise.connect(o.noiseGain); o.noiseGain.connect(o.filter);
+    applyPreset(instrument,o);
 
-        /* ============= Utilities ============= */
-        const getHandednessKey = (handedness) => handedness.toLowerCase().startsWith("left") ? "L" : "R";
-        
-        function isFingerExtended(landmarks, finger, handKey) {
-            const fingerIndices = { thumb: [1, 2, 3, 4], index: [5, 6, 7, 8], middle: [9, 10, 11, 12], ring: [13, 14, 15, 16], pinky: [17, 18, 19, 20] };
-            const [mcp, pip, , tip] = fingerIndices[finger].map(i => landmarks[i]);
-            if (finger === "thumb") {
-                return (handKey === "R") ? (tip.x > mcp.x + 0.06) : (tip.x < mcp.x - 0.06);
-            } else {
-                return (pip.y - tip.y) > 0.035;
-            }
-        }
-        
-        const wristGain = (landmarks) => Math.min(1, Math.max(0, 1 - landmarks[0].y));
-        const lerp = (a, b, t) => a + (b - a) * t;
+    o.setFreq=(f)=>{
+      const now=ctx.currentTime;
+      if(o.pitchEnv){
+        o.osc.frequency.setValueAtTime(f*1.03, now); o.osc2.frequency.setValueAtTime(f*1.03, now);
+        o.osc.frequency.exponentialRampToValueAtTime(Math.max(20,f), now+0.05);
+        o.osc2.frequency.exponentialRampToValueAtTime(Math.max(20,f), now+0.05);
+      }else{
+        o.osc.frequency.exponentialRampToValueAtTime(Math.max(20,f), now+0.01);
+        o.osc2.frequency.exponentialRampToValueAtTime(Math.max(20,f*0.999), now+0.01);
+      }
+    };
+    o.env=(target=0.65,a=0.008,d=0.06,s=0.55)=>{
+      if(o.envShape){ a=o.envShape.a; d=o.envShape.d; s=o.envShape.s; }
+      const now=ctx.currentTime;
+      o.gain.gain.cancelScheduledValues(now);
+      o.gain.gain.linearRampToValueAtTime(target, now+a);
+      o.gain.gain.linearRampToValueAtTime(target*s, now+a+d);
+    };
+    o.release=(r=0.12)=>{ const now=ctx.currentTime; o.gain.gain.cancelScheduledValues(now); o.gain.gain.setTargetAtTime(0, now, r); };
+    o.strike=(tone=440, velo=1)=>{
+      o.setFreq(tone);
+      if(o.pluck){
+        o.noiseGain.gain.setValueAtTime(0.11*velo, ctx.currentTime);
+        o.noiseGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+0.04);
+        o.env(Math.min(0.8,0.5+0.4*velo), 0.003, 0.05, 0.45);
+      }else{
+        o.noiseGain.gain.setValueAtTime(0.06*velo, ctx.currentTime);
+        o.noiseGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+0.06);
+        o.env(Math.min(0.8,0.35+0.5*velo), 0.004, 0.05, 0.6);
+      }
+    };
+    return o;
+  };
 
-        /* ======= Voice Management per Hand/Finger ======= */
-        const activeVoices = {}; // e.g., "L_index" -> voice object
-        function ensureVoice(key, instrument) {
-            if (!activeVoices[key]) {
-                activeVoices[key] = AudioEngine.createVoice(instrument);
-            }
-            return activeVoices[key];
-        }
-        function stopVoice(key) {
-            if (activeVoices[key]) activeVoices[key].release();
-        }
+  // Percusión
+  const drums=(()=>{
+    const kick=(vel=1)=>{
+      const osc=ctx.createOscillator(); osc.type='sine';
+      const g=ctx.createGain(); g.gain.value=0.0001;
+      const f0=(soundSet==='regional')?90:120, f1=(soundSet==='regional')?38:45;
+      osc.frequency.setValueAtTime(f0, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(f1, ctx.currentTime+0.18);
+      g.gain.setValueAtTime(0.95*vel, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime+0.22);
+      osc.connect(g); g.connect(master); osc.start(); osc.stop(ctx.currentTime+0.25);
+    };
+    const snare=(vel=1)=>{
+      const nb=ctx.createBuffer(1, ctx.sampleRate*0.6, ctx.sampleRate), d=nb.getChannelData(0);
+      for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1;
+      const noise=ctx.createBufferSource(); noise.buffer=nb;
+      const bp=ctx.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=(soundSet==='regional')?1800:2500; bp.Q.value=(soundSet==='regional')?0.7:0.5;
+      const g=ctx.createGain(); g.gain.value=(soundSet==='regional')?1.0*vel:0.9*vel;
+      noise.connect(bp); bp.connect(g); g.connect(master);
+      noise.start(); const dur=(soundSet==='regional')?0.22:0.18;
+      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime+dur); noise.stop(ctx.currentTime+dur+0.02);
+    };
+    const hihat=(open=false, vel=1)=>{
+      const nb=ctx.createBuffer(1, ctx.sampleRate*0.5, ctx.sampleRate), d=nb.getChannelData(0);
+      for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1;
+      const noise=ctx.createBufferSource(); noise.buffer=nb;
+      const hp=ctx.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=(soundSet==='regional')?8000:7000; hp.Q.value=0.8;
+      const g=ctx.createGain(); g.gain.value=(soundSet==='regional')?0.7*vel:0.6*vel;
+      noise.connect(hp); hp.connect(g); g.connect(master);
+      noise.start(); const dur=open?((soundSet==='regional')?0.42:0.35):0.08;
+      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime+dur); noise.stop(ctx.currentTime+dur+0.02);
+    };
+    const crash=(vel=1)=>{
+      const nb=ctx.createBuffer(1, ctx.sampleRate*1.5, ctx.sampleRate), d=nb.getChannelData(0);
+      for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1;
+      const noise=ctx.createBufferSource(); noise.buffer=nb;
+      const bp=ctx.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=5200; bp.Q.value=0.35;
+      const g=ctx.createGain(); g.gain.value=0.55*vel;
+      noise.connect(bp); bp.connect(g); g.connect(master);
+      noise.start(); g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime+0.9); noise.stop(ctx.currentTime+0.95);
+    };
+    return {kick,snare,hihat,crash};
+  })();
 
-        /* =========== Face to Percussion Mapping =========== */
-        const faceState = { blinkL: false, blinkR: false, mouth: false, tongue: false };
-        const getBlendshapeMap = (blendshapes) => {
-            const map = {};
-            blendshapes?.categories?.forEach(c => map[c.categoryName] = c.score);
-            return map;
-        };
-        const edgeTrigger = (prev, now, threshold = 0.55) => (!prev && now > threshold);
+  // === Grabación con MediaRecorder ===
+  function startRecording(){
+    chunks = [];
+    const stream = recorderDest.stream;
+    const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
+    mediaRecorder = new MediaRecorder(stream, { mimeType: mime, audioBitsPerSecond: 192000 });
+    mediaRecorder.ondataavailable = e => { if(e.data.size>0) chunks.push(e.data); };
+    mediaRecorder.onstop = ()=>{
+      const blob = new Blob(chunks, { type: mediaRecorder.mimeType });
+      const url = URL.createObjectURL(blob);
+      recDownload.href = url;
+      recDownload.style.display = 'inline';
+    };
+    mediaRecorder.start();
+    recStartTs = Date.now();
+    recTimerId = setInterval(()=>{
+      const s = Math.floor((Date.now()-recStartTs)/1000);
+      const mm = String(Math.floor(s/60)).padStart(2,'0');
+      const ss = String(s%60).padStart(2,'0');
+      recTimer.textContent = `${mm}:${ss}`;
+    }, 200);
+  }
+  function stopRecording(){
+    if(mediaRecorder && mediaRecorder.state !== 'inactive'){
+      mediaRecorder.stop();
+      clearInterval(recTimerId);
+      recTimerId = null;
+    }
+  }
 
-        function processFace(result) {
-            if (!result || !result.faceBlendshapes || result.faceBlendshapes.length === 0) return;
-            
-            const blendshapes = getBlendshapeMap(result.faceBlendshapes[0]);
-            const blinkL = blendshapes["eyeBlinkLeft"] ?? 0;
-            const blinkR = blendshapes["eyeBlinkRight"] ?? 0;
-            const mouthOpen = (blendshapes["mouthOpen"] ?? 0) + (blendshapes["jawOpen"] ?? 0) * 0.5;
-            const tongueOut = blendshapes["tongueOut"] ?? 0;
+  return {
+    ctx, master,
+    setVolume(v){ master.gain.value = v; },
+    buildScale, noteFreq, createVoice,
+    drums,
+    startRecording, stopRecording
+  };
+})();
 
-            if (edgeTrigger(faceState.blinkL, blinkL)) AudioEngine.drums.hihat(false, 0.9);
-            if (edgeTrigger(faceState.blinkR, blinkR)) AudioEngine.drums.hihat(true, 0.9);
-            if (edgeTrigger(faceState.mouth, mouthOpen, 0.6)) AudioEngine.drums.snare(1.0);
-            if (edgeTrigger(faceState.tongue, tongueOut, 0.55)) AudioEngine.drums.crash(1.0);
+/* ======== Escalas / asignaciones ======== */
+let scale = AudioEngine.buildScale("C4","major");
+const fingerToDegree = { thumb:0, index:1, middle:2, ring:3, pinky:4 };
+const fingerMap = ["thumb","index","middle","ring","pinky"];
 
-            if ((blinkL > 0.6 && blinkR > 0.6) && !(faceState.blinkL && faceState.blinkR)) {
-                AudioEngine.drums.kick(1.0);
-            }
+function degreeToFreq(deg, bias=0){
+  const idx=Math.min(scale.length-1, Math.max(0,deg));
+  const note=scale[idx];
+  return AudioEngine.noteFreq(note) * Math.pow(2, bias/12);
+}
+function updateScale(){ scale = AudioEngine.buildScale(scaleRoot.value, scaleType.value); }
+scaleRoot.addEventListener('change', updateScale);
+scaleType.addEventListener('change', updateScale);
+volume.addEventListener('input', e=> AudioEngine.setVolume(parseFloat(e.target.value)));
 
-            faceState.blinkL = blinkL > 0.55;
-            faceState.blinkR = blinkR > 0.55;
-            faceState.mouth = mouthOpen > 0.6;
-            faceState.tongue = tongueOut > 0.55;
+/* ======= Dibujo landmarks ======= */
+drawLandmarks = (drawSel.value==="1");
+drawSel.addEventListener('change', e=> drawLandmarks = e.target.value==="1");
+const drawUtils = new DrawingUtils(ctx);
+function drawHands(res){
+  if(!drawLandmarks) return;
+  ctx.save();
+  res?.landmarks?.forEach((lm)=>{
+    drawUtils.drawConnectors(lm, HandLandmarker.HAND_CONNECTIONS,{color:"#5dd6ff"});
+    drawUtils.drawLandmarks(lm, {color:"#44d19f", radius:2.2});
+  });
+  ctx.restore();
+}
+function drawFace(res){
+  if(!drawLandmarks) return;
+  ctx.save();
+  res?.faceLandmarks?.forEach(lm=>{
+    drawUtils.drawLandmarks(lm, {color:"#ffc857", radius:1.8});
+  });
+  ctx.restore();
+}
 
-            hudEl.innerHTML = `
-                <span class="pill">${faceState.blinkL ? '�️‍🗨️' : '👁️'} L</span>
-                <span class="pill">${faceState.blinkR ? '👁️‍🗨️' : '👁️'} R</span>
-                <span class="pill">${faceState.mouth ? '🗣️' : '🙂'}</span>
-                <span class="pill">${faceState.tongue ? '👅' : '👄'}</span>
-            `;
-        }
+/* ===== Utilidades manos ===== */
+const handedKey = (handedness)=> handedness.toLowerCase().startsWith("left") ? "L":"R";
+function isFingerExtended(landmarks, finger, HK){
+  const idx = { thumb:[1,2,3,4], index:[5,6,7,8], middle:[9,10,11,12], ring:[13,14,15,16], pinky:[17,18,19,20] }[finger];
+  const [mcp, pip, , tip] = idx.map(i=> landmarks[i]);
+  if(finger === "thumb"){
+    return (HK==="R") ? (tip.x > mcp.x + 0.06) : (tip.x < mcp.x - 0.06);
+  }else{
+    return (pip.y - tip.y) > 0.035;
+  }
+}
+function wristGain(landmarks){ const w=landmarks[0]; return Math.min(1, Math.max(0, 1 - w.y)); }
+function lerp(a,b,t){ return a + (b-a)*t; }
 
-        /* ========== Main Prediction Loop ========== */
-        let lastInferenceTime = 0;
-        const INFERENCE_SPEEDS = { speed: 1 / 45, balanced: 1 / 30, quality: 1 / 20 };
+/* ===== Voces por dedo/mano ===== */
+const activeVoices = {};
+function ensureVoice(key, instrument){
+  if(!activeVoices[key]){
+    activeVoices[key] = AudioEngine.createVoice(instrument);
+  }
+  return activeVoices[key];
+}
+function stopVoice(key){ if(activeVoices[key]) activeVoices[key].release(); }
 
-        async function predictionLoop() {
-            if (!isRunning) return;
-            
-            const now = performance.now() / 1000;
-            const minDelta = INFERENCE_SPEEDS[perfModeEl.value] || INFERENCE_SPEEDS.balanced;
+/* ===== Cara → Percusión ===== */
+const faceState = { blinkL:false, blinkR:false, mouth:false, tongue:false };
+function getBlendmap(blendshapes){ const map={}; blendshapes?.categories?.forEach(c=>map[c.categoryName]=c.score); return map; }
+function edge(prev, now, th=0.55){ return (!prev && now>th); }
+function processFace(result){
+  if(!result) return;
+  const bm = getBlendmap(result.faceBlendshapes?.[0] || {});
+  const blinkL  = bm["eyeBlinkLeft"]  ?? 0;
+  const blinkR  = bm["eyeBlinkRight"] ?? 0;
+  const mouthOpen = (bm["mouthOpen"] ?? 0) + (bm["jawOpen"] ?? 0)*0.5;
+  const tongue   = bm["tongueOut"] ?? 0;
 
-            if (now - lastInferenceTime >= minDelta) {
-                lastInferenceTime = now;
-                const timestamp = performance.now();
-                const handsResult = await handLandmarker.detectForVideo(webcamEl, timestamp);
-                const faceResult = await faceLandmarker.detectForVideo(webcamEl, timestamp);
+  if(edge(faceState.blinkL, blinkL)) AudioEngine.drums.hihat(false, 0.9);
+  if(edge(faceState.blinkR, blinkR)) AudioEngine.drums.hihat(true, 0.9);
+  if(edge(faceState.mouth, mouthOpen, 0.6)) AudioEngine.drums.snare(1.0);
+  if(edge(faceState.tongue, tongue, 0.55)) AudioEngine.drums.crash(1.0);
+  if( (blinkL>0.6 && blinkR>0.6) && !(faceState.blinkL && faceState.blinkR) ){ AudioEngine.drums.kick(1.0); }
 
-                ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
-                if (drawLandmarks) {
-                    drawHands(handsResult);
-                    drawFace(faceResult);
-                }
+  faceState.blinkL = blinkL>0.55; faceState.blinkR = blinkR>0.55; faceState.mouth = mouthOpen>0.6; faceState.tongue = tongue>0.55;
+  hud.innerHTML = `
+    <span class="pill">${(blinkL>0.55?'👁️‍🗨️':'👁️')} L</span>
+    <span class="pill">${(blinkR>0.55?'👁️‍🗨️':'👁️')} R</span>
+    <span class="pill">${(mouthOpen>0.6?'🗣️ BOCA':'🙂')}</span>
+    <span class="pill">${(tongue>0.55?'👅 LENGUA':'👄')}</span>`;
+}
 
-                processHands(handsResult);
-                processFace(faceResult);
-            }
-            requestAnimationFrame(predictionLoop);
-        }
+/* ===== Bucle de inferencia ===== */
+let lastInfer = 0;
+const SPEEDS = { speed:1/45, balanced:1/30, quality:1/20 };
+async function loop(){
+  if(!running) return;
+  const now=performance.now()/1000, minDelta=SPEEDS[perfMode.value]||SPEEDS.balanced;
+  if(now - lastInfer >= minDelta){
+    lastInfer = now;
+    const ts = performance.now();
+    const hands = await handLandmarker.detectForVideo(webcamEl, ts);
+    const face  = await faceLandmarker.detectForVideo(webcamEl, ts);
+    ctx.clearRect(0,0,canvas.width, canvas.height);
+    if(drawLandmarks){ drawHands(hands); drawFace(face); }
+    processHands(hands); processFace(face);
+  }
+  requestAnimationFrame(loop);
+}
 
-        /* ====== Hand Music Engine ====== */
-        const smoothYCoords = {};
-        function processHands(result) {
-            if (!result || !result.handedness) return;
-            
-            for (let i = 0; i < result.handedness.length; i++) {
-                const handedness = result.handedness[i][0].categoryName;
-                const handKey = getHandednessKey(handedness);
-                const instrument = (handKey === "L") ? leftInstrumentEl.value : rightInstrumentEl.value;
-                const landmarks = result.landmarks[i];
-                const gain = wristGain(landmarks);
+/* ===== Manos → Notas (con “sin instrumento”) ===== */
+const smoothY = {};
+function processHands(result){
+  if(!result) return;
+  for(let i=0;i<result.handedness.length;i++){
+    const handed = result.handedness[i][0].categoryName; const HK = handed.toLowerCase().startsWith("left")?"L":"R";
+    const selected = HK==="L" ? leftInstrument.value : rightInstrument.value;
+    const noInstrument = (selected === "(Sin instrumento)");
+    const lm = result.landmarks[i]; const g = wristGain(lm);
 
-                for (const finger of fingerMap) {
-                    const voiceKey = `${handKey}_${finger}`;
-                    const degree = fingerToDegree[finger];
-                    const tipIndex = { thumb: 4, index: 8, middle: 12, ring: 16, pinky: 20 }[finger];
-                    const tip = landmarks[tipIndex];
-                    
-                    const smoothKey = `${voiceKey}_tip`;
-                    const smoothedY = smoothYCoords[smoothKey] = lerp(smoothYCoords[smoothKey] ?? tip.y, tip.y, 0.35);
-                    
-                    const pitchBias = Math.round((0.5 - smoothedY) * 24); // ±12 semitones
-                    const freq = degreeToFreq(degree, pitchBias);
-                    const isExtended = isFingerExtended(landmarks, finger, handKey);
+    for(const finger of fingerMap){
+      const key=`${HK}_${finger}`;
+      const deg=fingerToDegree[finger];
+      const tipIndex={thumb:4,index:8,middle:12,ring:16,pinky:20}[finger];
+      const tip=lm[tipIndex]; const idKey=`${key}_tip`;
+      const sy = smoothY[idKey] = lerp(smoothY[idKey] ?? tip.y, tip.y, 0.35);
+      const pitchBias = Math.round((0.5 - sy) * 24);
+      const freq = degreeToFreq(deg, pitchBias);
+      const extended = isFingerExtended(lm, finger, HK);
 
-                    if (isExtended) {
-                        const voice = ensureVoice(voiceKey, instrument);
-                        voice.strike(freq, Math.max(0.2, gain));
-                        voice.gain.gain.value = Math.min(0.9, (0.25 + 0.7 * gain));
-                    } else {
-                        stopVoice(voiceKey);
-                    }
-                }
-            }
-        }
+      if(noInstrument || !extended){
+        stopVoice(key); // silencia si no hay instrumento o dedo no extendido
+      }else{
+        const v = ensureVoice(key, selected);
+        v.strike(freq, Math.max(0.2, g));
+        v.gain.gain.value = Math.min(0.9, (0.25 + 0.7*g));
+      }
+    }
+  }
+}
 
-        /* =========== Camera / Model Setup =========== */
-        async function setupCamera() {
-            stream = await navigator.mediaDevices.getUserMedia({
-                video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 60, max: 60 } },
-                audio: false
-            });
-            webcamEl.srcObject = stream;
-            
-            return new Promise((resolve) => {
-                webcamEl.onloadedmetadata = () => {
-                    webcamEl.play();
-                    const vw = webcamEl.videoWidth;
-                    const vh = webcamEl.videoHeight;
-                    canvasEl.width = vw;
-                    canvasEl.height = vh;
-                    ctx.setTransform(1, 0, 0, 1, 0, 0);
-                    if (mirrorEl.value === "1") {
-                        ctx.translate(canvasEl.width, 0);
-                        ctx.scale(-1, 1);
-                    }
-                    resolve();
-                };
-            });
-        }
-        
-        async function loadModels() {
-            const wasmBase = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm";
-            vision = await FilesetResolver.forVisionTasks(wasmBase);
-            handLandmarker = await HandLandmarker.createFromOptions(vision, {
-                baseOptions: { modelAssetPath: HAND_MODEL_URL, delegate: "GPU" },
-                numHands: maxHands,
-                runningMode: "VIDEO"
-            });
-            faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
-                baseOptions: { modelAssetPath: FACE_MODEL_URL, delegate: "GPU" },
-                runningMode: "VIDEO",
-                numFaces: 1,
-                outputFaceBlendshapes: true,
-                outputFacialTransformationMatrixes: false
-            });
-        }
+/* ===== Cámara / modelos ===== */
+async function setupCamera(){
+  stream = await navigator.mediaDevices.getUserMedia({
+    video: { width:{ideal:1280}, height:{ideal:720}, frameRate:{ideal:60, max:60} }, audio:false
+  });
+  webcamEl.srcObject = stream; await webcamEl.play();
+  canvas.width = webcamEl.videoWidth; canvas.height = webcamEl.videoHeight;
+  ctx.setTransform(1,0,0,1,0,0);
+  if(mirrorSel.value==="1"){ ctx.translate(canvas.width,0); ctx.scale(-1,1); }
+}
+async function loadModels(){
+  const wasmBase = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm";
+  vision = await FilesetResolver.forVisionTasks(wasmBase);
+  handLandmarker = await HandLandmarker.createFromOptions(vision, {
+    baseOptions: { modelAssetPath: HAND_MODEL_URL }, numHands:2, runningMode:"VIDEO"
+  });
+  faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
+    baseOptions: { modelAssetPath: FACE_MODEL_URL }, runningMode:"VIDEO",
+    numFaces:1, outputFaceBlendshapes:true, outputFacialTransformationMatrices:false
+  });
+}
 
-        /* =========== UI Helpers =========== */
-        function setInstrumentOptions(forSet) {
-            const instruments = SOUND_SETS[forSet];
-            const rebuild = (selectElement) => {
-                const prevValue = selectElement.value;
-                selectElement.innerHTML = instruments.map(x => `<option value="${x}">${x}</option>`).join('');
-                if (instruments.includes(prevValue)) {
-                    selectElement.value = prevValue;
-                }
-            };
-            rebuild(leftInstrumentEl);
-            rebuild(rightInstrumentEl);
-        }
-        setInstrumentOptions(soundSet);
+/* ===== Controles ===== */
+startBtn.addEventListener('click', async ()=>{
+  startBtn.disabled = true;
+  try{
+    await AudioEngine.ctx.resume();
+    AudioEngine.setVolume(parseFloat(volume.value));
+    await setupCamera(); await loadModels();
+    camStatus.className = "status-dot ok";
+    running = true; stopBtn.disabled = false;
+    recBtn.disabled = false; recDownload.style.display='none'; recTimer.textContent='00:00';
+    loop();
+  }catch(err){
+    console.error(err); camStatus.className = "status-dot err";
+    envHint.textContent = "Error al iniciar: " + (err?.message || err);
+    startBtn.disabled = false;
+  }
+});
+stopBtn.addEventListener('click', ()=>{
+  running=false; stopBtn.disabled=true; startBtn.disabled=false; camStatus.className="status-dot warn";
+  recBtn.disabled = true; recStopBtn.disabled = true;
+  Object.keys(activeVoices).forEach(k=> stopVoice(k));
+  if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
+  ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,canvas.width,canvas.height);
+});
 
-        soundSetSel.addEventListener('change', () => {
-            soundSet = soundSetSel.value;
-            localStorage.setItem('soundSet', soundSet);
-            setInstrumentOptions(soundSet);
-        });
+muteBtn.addEventListener('click', ()=>{ AudioEngine.setVolume(0); volume.value=0; });
+volume.addEventListener('change', ()=> AudioEngine.setVolume(parseFloat(volume.value)) );
 
-        mirrorEl.addEventListener('change', e => mirrorView = e.target.value === "1");
-        drawEl.addEventListener('change', e => drawLandmarks = e.target.value === "1");
+recBtn.addEventListener('click', ()=>{
+  recBtn.disabled = true; recStopBtn.disabled = false; recDownload.style.display='none'; recTimer.textContent='00:00';
+  AudioEngine.startRecording();
+});
+recStopBtn.addEventListener('click', ()=>{
+  recStopBtn.disabled = true; recBtn.disabled = false;
+  AudioEngine.stopRecording();
+});
 
-        /* =========== Main Controls =========== */
-        startBtn.addEventListener('click', async () => {
-            startBtn.disabled = true;
-            startBtn.textContent = "Loading...";
-            try {
-                await AudioEngine.ctx.resume();
-                AudioEngine.setVolume(parseFloat(volumeEl.value));
-                await setupCamera();
-                await loadModels();
-                camStatus.className = "status-dot ok";
-                isRunning = true;
-                stopBtn.disabled = false;
-                startBtn.textContent = "Start";
-                predictionLoop();
-            } catch (err) {
-                console.error(err);
-                camStatus.className = "status-dot err";
-                envHint.textContent = `Error starting: ${err?.message || err}`;
-                envHint.style.display = 'block';
-                startBtn.disabled = false;
-                startBtn.textContent = "Start";
-            }
-        });
-
-        stopBtn.addEventListener('click', () => {
-            isRunning = false;
-            stopBtn.disabled = true;
-            startBtn.disabled = false;
-            camStatus.className = "status-dot warn";
-            Object.keys(activeVoices).forEach(key => stopVoice(key));
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-                stream = null;
-            }
-            ctx.setTransform(1, 0, 0, 1, 0, 0);
-            ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
-            hudEl.innerHTML = '';
-        });
-
-        muteBtn.addEventListener('click', () => {
-            AudioEngine.setVolume(0);
-            volumeEl.value = 0;
-        });
-
-        window.addEventListener('resize', () => {
-            if (webcamEl.videoWidth) {
-                canvasEl.width = webcamEl.videoWidth;
-                canvasEl.height = webcamEl.videoHeight;
-                ctx.setTransform(1, 0, 0, 1, 0, 0);
-                if (mirrorEl.value === "1") {
-                    ctx.translate(canvasEl.width, 0);
-                    ctx.scale(-1, 1);
-                }
-            }
-        });
-    </script>
+window.addEventListener('resize', ()=>{
+  if(webcamEl.videoWidth){
+    canvas.width=webcamEl.videoWidth; canvas.height=webcamEl.videoHeight;
+    ctx.setTransform(1,0,0,1,0,0);
+    if(mirrorSel.value==="1"){ ctx.translate(canvas.width,0); ctx.scale(-1,1); }
+  }
+});
+</script>
 </body>
 </html>
-�
