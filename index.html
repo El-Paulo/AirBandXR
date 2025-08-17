@@ -52,7 +52,6 @@
   main{display:grid;grid-template-columns:1.35fr .65fr;gap:14px;max-width:1200px;margin:14px auto;padding:0 16px}
   .stage{position:relative;border-radius:var(--radius);overflow:hidden;border:1px solid var(--border);
          background:#000;resize: both; min-height:420px; width:100%; height:520px}
-  /* Video y canvas sincronizados (usamos layout cover calculado en JS) */
   video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
   canvas{position:absolute;display:block}
 
@@ -176,7 +175,7 @@
           <li><span class="kbd">Guiño izq</span> → Hi-hat cerrado</li>
           <li><span class="kbd">Guiño der</span> → Hi-hat abierto</li>
           <li><span class="kbd">Boca abierta</span> → Caja</li>
-          <li><span class="kbd">Lengua fuera</span> → Crash</li>
+          <!-- Sin lengua: removido a petición -->
         </ul>
       </div>
     </div>
@@ -289,10 +288,10 @@ const AudioEngine = (() => {
 
   // Buses
   const master = ctx.createGain(); master.gain.value = 0.85;
-  const root   = ctx.createGain(); // todos los instrumentos van aquí
+  const root   = ctx.createGain();
   const dry    = ctx.createGain(); dry.gain.value = 1.0; root.connect(dry);
-  const convolver = ctx.createConvolver(); // IR sintetizada
-  const wet    = ctx.createGain(); wet.gain.value = 0.0; // apagado por defecto
+  const convolver = ctx.createConvolver();
+  const wet    = ctx.createGain(); wet.gain.value = 0.0;
   root.connect(convolver); convolver.connect(wet);
 
   dry.connect(master);
@@ -304,7 +303,7 @@ const AudioEngine = (() => {
   master.connect(recorderDest);
   let mediaRecorder = null, chunks = [], recStartTs = 0, recTimerId = null;
 
-  // IR sintética (ruido decaído)
+  // IR sintética
   function makeImpulseResponse(seconds=0.35, decay=3.5){
     const len = Math.max(1, Math.floor(seconds * ctx.sampleRate));
     const buf = ctx.createBuffer(2, len, ctx.sampleRate);
@@ -332,7 +331,7 @@ const AudioEngine = (() => {
   };
   const buildScale = (root="C4", type="major")=>{
     const iv={major:[0,2,4,5,7,9,11,12],minor:[0,2,3,5,7,8,10,12],pentatonic:[0,2,4,7,9,12],blues:[0,3,5,6,7,10,12]}[type]||[0,2,4,5,7,9,11,12];
-    const baseTable={'C':0,'C#':1,'D':2,'D#':3,'E':4,'F':5,'F#':6,'G':7,'G#':8,'A':9,'A#':10,'B':11,'Bb':10,'Db':1,'Gb':6,'Ab':8,'Eb':3};
+    const baseTable={'C':0,'C#':1,'D':2,'D#':3,'E':4,'F':5,'F':5,'F#':6,'G':7,'G#':8,'A':9,'A#':10,'B':11,'Bb':10,'Db':1,'Gb':6,'Ab':8,'Eb':3};
     const mm=root.match(/^([A-G]#?|Bb|Db|Gb)(\d)$/); const base=baseTable[mm[1]]; const octave=+mm[2];
     const names=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
     return iv.map(semi=>{const total=base+semi+octave*12; return `${names[(total%12+12)%12]}${Math.floor(total/12)}`;});
@@ -343,7 +342,7 @@ const AudioEngine = (() => {
     const g=ctx.createGain(); g.gain.value=depth; lfo.connect(g); g.connect(destParam); lfo.start(); return {lfo,g};
   };
 
-  // Karplus–Strong pluck voice
+  // Karplus–Strong
   function createPluckVoice(dest=root){
     const g = ctx.createGain(); g.gain.value = 0; g.connect(dest);
     const delay = ctx.createDelay(1.0);
@@ -376,7 +375,6 @@ const AudioEngine = (() => {
   }
 
   function addFormants(o, freqsQ){
-    // Inserta filtros en serie entre mezcla y salida (root)
     const biqs = freqsQ.map(([f,q])=>{
       const b = ctx.createBiquadFilter(); b.type='bandpass'; b.frequency.value=f; b.Q.value=q; return b;
     });
@@ -501,7 +499,6 @@ const AudioEngine = (() => {
     return {kick,snare,hihat,crash};
   })();
 
-  // === Grabación con MediaRecorder ===
   function startRecording(){
     chunks = [];
     const stream = recorderDest.stream;
@@ -557,9 +554,10 @@ scaleType.addEventListener('change', updateScale);
 volume.addEventListener('input', e=> AudioEngine.setVolume(parseFloat(e.target.value)));
 
 /* ======= Dibujo landmarks ======= */
-drawLandmarks = (drawSel.value==="1");
-drawSel.addEventListener('change', e=> drawLandmarks = e.target.value==="1");
 const drawUtils = new DrawingUtils(ctx);
+drawLandmarks = (drawSel.value==="1");
+drawSel.addEventListener('change', e=> { drawLandmarks = e.target.value==="1"; });
+
 function drawHands(res){
   if(!drawLandmarks) return;
   ctx.save();
@@ -579,7 +577,6 @@ function drawFace(res){
 }
 
 /* ===== Utilidades manos ===== */
-const handedKey = (handedness)=> handedness.toLowerCase().startsWith("left") ? "L":"R";
 function isFingerExtended(landmarks, finger, HK){
   const idx = { thumb:[1,2,3,4], index:[5,6,7,8], middle:[9,10,11,12], ring:[13,14,15,16], pinky:[17,18,19,20] }[finger];
   const [mcp, pip, , tip] = idx.map(i=> landmarks[i]);
@@ -602,8 +599,8 @@ function ensureVoice(key, instrument){
 }
 function stopVoice(key){ if(activeVoices[key]) activeVoices[key].release(); }
 
-/* ===== Cara → Percusión ===== */
-const faceState = { blinkL:false, blinkR:false, mouth:false, tongue:false };
+/* ===== Cara → Percusión (sin lengua) ===== */
+const faceState = { blinkL:false, blinkR:false, mouth:false };
 function getBlendmap(blendshapes){ const map={}; blendshapes?.categories?.forEach(c=>map[c.categoryName]=c.score); return map; }
 function edge(prev, now, th=0.55){ return (!prev && now>th); }
 function processFace(result){
@@ -612,20 +609,23 @@ function processFace(result){
   const blinkL  = bm["eyeBlinkLeft"]  ?? 0;
   const blinkR  = bm["eyeBlinkRight"] ?? 0;
   const mouthOpen = (bm["mouthOpen"] ?? 0) + (bm["jawOpen"] ?? 0)*0.5;
-  const tongue   = bm["tongueOut"] ?? 0;
 
   if(edge(faceState.blinkL, blinkL)) AudioEngine.drums.hihat(false, 0.9);
   if(edge(faceState.blinkR, blinkR)) AudioEngine.drums.hihat(true, 0.9);
   if(edge(faceState.mouth, mouthOpen, 0.6)) AudioEngine.drums.snare(1.0);
-  if(edge(faceState.tongue, tongue, 0.55)) AudioEngine.drums.crash(1.0);
-  if( (blinkL>0.6 && blinkR>0.6) && !(faceState.blinkL && faceState.blinkR) ){ AudioEngine.drums.kick(1.0); }
 
-  faceState.blinkL = blinkL>0.55; faceState.blinkR = blinkR>0.55; faceState.mouth = mouthOpen>0.6; faceState.tongue = tongue>0.55;
+  if( (blinkL>0.6 && blinkR>0.6) && !(faceState.blinkL && faceState.blinkR) ){
+    AudioEngine.drums.kick(1.0);
+  }
+
+  faceState.blinkL = blinkL>0.55;
+  faceState.blinkR = blinkR>0.55;
+  faceState.mouth  = mouthOpen>0.6;
+
   hud.innerHTML = `
-    <span class="pill">${(blinkL>0.55?'�️‍🗨️':'👁️')} L</span>
+    <span class="pill">${(blinkL>0.55?'👁️‍🗨️':'👁️')} L</span>
     <span class="pill">${(blinkR>0.55?'👁️‍🗨️':'👁️')} R</span>
-    <span class="pill">${(mouthOpen>0.6?'🗣️ BOCA':'🙂')}</span>
-    <span class="pill">${(tongue>0.55?'👅 LENGUA':'👄')}</span>`;
+    <span class="pill">${(mouthOpen>0.6?'🗣️ BOCA':'🙂')}</span>`;
 }
 
 /* ===== Bucle de inferencia ===== */
@@ -647,15 +647,17 @@ async function loop(){
 }
 
 /* ===== Manos → Notas (con “sin instrumento”) ===== */
-let scaleCache = null; // para suavizado
+const fingerMap = ["thumb","index","middle","ring","pinky"];
 const smoothY = {};
 function processHands(result){
   if(!result) return;
   for(let i=0;i<result.handedness.length;i++){
-    const handed = result.handedness[i][0].categoryName; const HK = handed.toLowerCase().startsWith("left")?"L":"R";
+    const handed = result.handedness[i][0].categoryName;
+    const HK = handed.toLowerCase().startsWith("left")?"L":"R";
     const selected = HK==="L" ? leftInstrument.value : rightInstrument.value;
     const noInstrument = (selected === "(Sin instrumento)");
-    const lm = result.landmarks[i]; const g = wristGain(lm);
+    const lm = result.landmarks[i];
+    const g = wristGain(lm);
 
     for(const finger of fingerMap){
       const key=`${HK}_${finger}`;
@@ -678,32 +680,28 @@ function processHands(result){
   }
 }
 
-/* ======= Video/Canvas layout perfecto (cover + HiDPI + espejo) ======= */
+/* ======= Video/Canvas layout (cover + HiDPI + espejo) ======= */
 const dpr = Math.max(1, window.devicePixelRatio || 1);
-function requestLayout(){ // re-layoutea respetando cover
+function requestLayout(){
   const stageRect = stageEl.getBoundingClientRect();
   const stageW = stageRect.width, stageH = stageRect.height;
   const vidW = webcamEl.videoWidth || 1280;
   const vidH = webcamEl.videoHeight || 720;
 
-  // layout tipo 'cover'
   const scale = Math.max(stageW/vidW, stageH/vidH);
   const drawW = vidW * scale;
   const drawH = vidH * scale;
   const offsetX = (stageW - drawW) / 2;
   const offsetY = (stageH - drawH) / 2;
 
-  // Canvas en CSS pixels (mismo rect que el video "cover")
   canvas.style.width  = drawW + 'px';
   canvas.style.height = drawH + 'px';
   canvas.style.left   = offsetX + 'px';
   canvas.style.top    = offsetY + 'px';
 
-  // Canvas interno en pixeles reales para nitidez
   canvas.width  = Math.round(drawW * dpr);
   canvas.height = Math.round(drawH * dpr);
 
-  // Transform para espejo: flip horizontal respecto al ancho visible del canvas
   if (mirrorSel.value === "1") {
     ctx.setTransform(-dpr, 0, 0, dpr, canvas.width, 0);
   } else {
@@ -722,7 +720,7 @@ async function setupCamera(){
   });
   webcamEl.srcObject = stream;
   await webcamEl.play();
-  requestLayout(); // importante: al tener metadata, ya sabemos videoWidth/Height
+  requestLayout();
 }
 async function loadModels(){
   const wasmBase = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm";
@@ -732,7 +730,7 @@ async function loadModels(){
   });
   faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
     baseOptions: { modelAssetPath: FACE_MODEL_URL }, runningMode:"VIDEO",
-    numFaces:1, outputFaceBlendshapes:true, outputFacialTransformationMatrices:false
+    numFaces:1, outputFaceBlendshapes:true, outputFacialTransformationMatrixes:false
   });
 }
 
@@ -785,4 +783,3 @@ compactBtn.addEventListener('click', ()=>{
 </script>
 </body>
 </html>
-�
