@@ -78,7 +78,7 @@
       <span class="status-dot warn" id="camStatus"></span>
       <b>AirBand XR</b>
       <span class="tag">Webcam → Gestos → Sonido en tiempo real</span>
-      <button id="compactBtn" class="btn ghost compact-btn">Compactar barra</button>
+      <button id="compactBtn" class="btn ghost compact-btn" title="Contraer/expandir barra">Compactar barra</button>
     </div>
 
     <div class="row" style="grid-column: span 6">
@@ -93,63 +93,56 @@
     </div>
 
     <div class="row advanced" style="grid-column: span 6">
-      <label class="tag">Tema</label>
-      <select id="themeSel" class="select">
-        <option value="system">Sistema</option>
-        <option value="dark">Oscuro</option>
-        <option value="light">Claro</option>
-      </select>
-      <label class="tag">Tamaño de letra</label>
-      <input id="fontSize" class="range" type="range" min="80" max="130" value="100" />
+      <label class="tag" for="themeSel">Tema</label>
+      <select id="themeSel" class="select" title="Tema"><option value="system">Sistema</option><option value="dark">Oscuro</option><option value="light">Claro</option></select>
+      <label class="tag" for="fontSize">Tamaño de letra</label>
+      <input id="fontSize" class="range" type="range" min="80" max="130" value="100" title="Tamaño de letra" />
       <span class="tag" id="fontVal">100%</span>
-      <label class="tag">Tamaño del escenario</label>
-      <input id="stageSize" class="range" type="range" min="60" max="140" value="100" />
+      <label class="tag" for="stageSize">Tamaño del escenario</label>
+      <input id="stageSize" class="range" type="range" min="60" max="140" value="100" title="Tamaño del escenario" />
       <span class="tag" id="stageVal">100%</span>
-      <label class="tag">Realismo+</label>
-      <select id="realism" class="select">
-        <option value="0">Off</option>
-        <option value="1">On</option>
-      </select>
+      <label class="tag" for="realism">Realismo+</label>
+      <select id="realism" class="select" title="Reverberación"><option value="0">Off</option><option value="1">On</option></select>
     </div>
 
     <div class="row" style="grid-column: span 6">
-      <label class="tag">Instrumento mano izquierda</label>
-      <select id="leftInstrument" class="select"></select>
-      <label class="tag">Instrumento mano derecha</label>
-      <select id="rightInstrument" class="select"></select>
-      <label class="tag">Banco</label>
-      <select id="soundSetSel" class="select">
+      <label class="tag" for="leftInstrument">Instrumento mano izquierda</label>
+      <select id="leftInstrument" class="select" title="Instrumento izquierdo"></select>
+      <label class="tag" for="rightInstrument">Instrumento mano derecha</label>
+      <select id="rightInstrument" class="select" title="Instrumento derecho"></select>
+      <label class="tag" for="soundSetSel">Banco</label>
+      <select id="soundSetSel" class="select" title="Banco de sonidos">
         <option value="electronico">Electrónico</option>
         <option value="regional">Regional</option>
       </select>
     </div>
 
     <div class="row advanced" style="grid-column: span 6">
-      <label class="tag">Escala</label>
-      <select id="scaleRoot" class="select">
+      <label class="tag" for="scaleRoot">Escala</label>
+      <select id="scaleRoot" class="select" title="Tónica">
         <option value="C4">Do (C4)</option><option value="D4">Re (D4)</option>
         <option value="E4">Mi (E4)</option><option value="F4">Fa (F4)</option>
         <option value="G3">Sol (G3)</option><option value="A3">La (A3)</option>
         <option value="B3">Si (B3)</option>
       </select>
-      <select id="scaleType" class="select">
+      <select id="scaleType" class="select" title="Modo">
         <option value="major">Mayor</option>
         <option value="minor">Menor</option>
         <option value="pentatonic">Pentatónica</option>
         <option value="blues">Blues</option>
       </select>
-      <label class="tag">Latencia</label>
-      <select id="perfMode" class="select">
+      <label class="tag" for="perfMode">Latencia</label>
+      <select id="perfMode" class="select" title="Rendimiento">
         <option value="balanced">Balanceada</option>
         <option value="speed">Máxima velocidad</option>
         <option value="quality">Máxima precisión</option>
       </select>
-      <label class="tag">Espejo</label>
-      <select id="mirror" class="select"><option value="1">Sí</option><option value="0">No</option></select>
-      <label class="tag">Landmarks</label>
-      <select id="draw" class="select"><option value="1">Sí</option><option value="0">No</option></select>
-      <label class="tag">Volumen</label>
-      <input id="volume" class="range" type="range" min="0" max="1" step="0.01" value="0.85" />
+      <label class="tag" for="mirror">Espejo</label>
+      <select id="mirror" class="select" title="Espejo"><option value="1">Sí</option><option value="0">No</option></select>
+      <label class="tag" for="draw">Landmarks</label>
+      <select id="draw" class="select" title="Dibujar landmarks"><option value="1">Sí</option><option value="0">No</option></select>
+      <label class="tag" for="volume">Volumen</label>
+      <input id="volume" class="range" type="range" min="0" max="1" step="0.01" value="0.85" title="Volumen" />
     </div>
   </div>
 </header>
@@ -175,7 +168,7 @@
           <li><span class="kbd">Guiño izq</span> → Hi-hat cerrado</li>
           <li><span class="kbd">Guiño der</span> → Hi-hat abierto</li>
           <li><span class="kbd">Boca abierta</span> → Caja</li>
-          <!-- Sin lengua: removido a petición -->
+          <!-- Lengua removida -->
         </ul>
       </div>
     </div>
@@ -187,6 +180,9 @@
 </footer>
 
 <script type="module">
+/* =========================
+   MediaPipe (import oficial)
+   ========================= */
 import { FilesetResolver, HandLandmarker, FaceLandmarker, DrawingUtils }
   from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest";
 
@@ -200,7 +196,7 @@ if (!location.protocol.startsWith('https') && location.hostname !== 'localhost')
   envHint.textContent = "Abre en HTTPS o localhost para usar la cámara.";
 }
 
-/* UI */
+/* ====== UI refs ====== */
 const themeSel = document.getElementById('themeSel');
 const fontSize = document.getElementById('fontSize');
 const fontVal  = document.getElementById('fontVal');
@@ -237,7 +233,7 @@ const headerEl = document.querySelector('header');
 
 const soundSetSel = document.getElementById('soundSetSel');
 
-/* Banco de sonidos y “sin instrumento” */
+/* ============= Banco de sonidos ============= */
 const SOUND_SETS = {
   electronico: ["(Sin instrumento)","Sintetizador","Piano","Guitarra","Violín","Brass","Órgano"],
   regional:    ["(Sin instrumento)","Acordeón","Tuba","Trompeta","Vihuela","Bajo sexto"]
@@ -263,7 +259,7 @@ soundSetSel.addEventListener('change', ()=>{
   if (soundSet === 'regional'){ realismSel.value="1"; AudioEngine.setRealism(true); }
 });
 
-/* Tema / fuente / tamaño escenario (persistentes) */
+/* Tema / fuente / tamaño escenario */
 function applyTheme(v){ document.body.setAttribute('data-theme', v); localStorage.setItem('theme', v); }
 function applyFont(pct){ document.documentElement.style.setProperty('--fs', (pct/100*15).toFixed(2)+'px'); fontVal.textContent = pct+'%'; localStorage.setItem('fs', pct); }
 function applyStage(pct){ stageEl.style.height = (pct/100*520) + 'px'; stageVal.textContent = pct+'%'; localStorage.setItem('stage', pct); requestLayout(); }
@@ -277,11 +273,10 @@ stageSize.addEventListener('input', e=> applyStage(+e.target.value));
 /* ====== Estado global ====== */
 let vision, handLandmarker, faceLandmarker;
 let running = false;
-let maxHands = 2;
 let stream = null;
 let drawLandmarks = true;
 
-/* ================== Audio + Grabación + Realismo ================== */
+/* ================== Audio + Grabación ================== */
 const AudioEngine = (() => {
   const AC = window.AudioContext || window.webkitAudioContext;
   const ctx = new AC({ latencyHint: 'interactive' });
@@ -290,20 +285,16 @@ const AudioEngine = (() => {
   const master = ctx.createGain(); master.gain.value = 0.85;
   const root   = ctx.createGain();
   const dry    = ctx.createGain(); dry.gain.value = 1.0; root.connect(dry);
-  const convolver = ctx.createConvolver();
+  const convolver = ctx.createConvolver(); // IR sintética
   const wet    = ctx.createGain(); wet.gain.value = 0.0;
   root.connect(convolver); convolver.connect(wet);
-
-  dry.connect(master);
-  wet.connect(master);
-  master.connect(ctx.destination);
+  dry.connect(master); wet.connect(master); master.connect(ctx.destination);
 
   // Grabación
   const recorderDest = ctx.createMediaStreamDestination();
   master.connect(recorderDest);
   let mediaRecorder = null, chunks = [], recStartTs = 0, recTimerId = null;
 
-  // IR sintética
   function makeImpulseResponse(seconds=0.35, decay=3.5){
     const len = Math.max(1, Math.floor(seconds * ctx.sampleRate));
     const buf = ctx.createBuffer(2, len, ctx.sampleRate);
@@ -317,10 +308,7 @@ const AudioEngine = (() => {
     return buf;
   }
   convolver.buffer = makeImpulseResponse();
-
-  function setRealism(on){
-    wet.gain.linearRampToValueAtTime(on ? 0.28 : 0.0, ctx.currentTime+0.05);
-  }
+  function setRealism(on){ wet.gain.linearRampToValueAtTime(on ? 0.28 : 0.0, ctx.currentTime+0.05); }
 
   // Utilidades musicales
   const noteFreq = (note) => {
@@ -331,7 +319,7 @@ const AudioEngine = (() => {
   };
   const buildScale = (root="C4", type="major")=>{
     const iv={major:[0,2,4,5,7,9,11,12],minor:[0,2,3,5,7,8,10,12],pentatonic:[0,2,4,7,9,12],blues:[0,3,5,6,7,10,12]}[type]||[0,2,4,5,7,9,11,12];
-    const baseTable={'C':0,'C#':1,'D':2,'D#':3,'E':4,'F':5,'F':5,'F#':6,'G':7,'G#':8,'A':9,'A#':10,'B':11,'Bb':10,'Db':1,'Gb':6,'Ab':8,'Eb':3};
+    const baseTable={'C':0,'C#':1,'D':2,'D#':3,'E':4,'F':5,'F#':6,'G':7,'G#':8,'A':9,'A#':10,'B':11,'Bb':10,'Db':1,'Gb':6,'Ab':8,'Eb':3};
     const mm=root.match(/^([A-G]#?|Bb|Db|Gb)(\d)$/); const base=baseTable[mm[1]]; const octave=+mm[2];
     const names=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
     return iv.map(semi=>{const total=base+semi+octave*12; return `${names[(total%12+12)%12]}${Math.floor(total/12)}`;});
@@ -342,7 +330,7 @@ const AudioEngine = (() => {
     const g=ctx.createGain(); g.gain.value=depth; lfo.connect(g); g.connect(destParam); lfo.start(); return {lfo,g};
   };
 
-  // Karplus–Strong
+  // Karplus–Strong pluck voice (vihuela/bajo sexto)
   function createPluckVoice(dest=root){
     const g = ctx.createGain(); g.gain.value = 0; g.connect(dest);
     const delay = ctx.createDelay(1.0);
@@ -358,32 +346,17 @@ const AudioEngine = (() => {
       const src = ctx.createBufferSource(); src.buffer=b; src.connect(startGain); src.start();
     }
     return {
-      setFreq(f){
-        const period = 1/Math.max(40, f);
-        delay.delayTime.setTargetAtTime(period, ctx.currentTime, 0.002);
-        lp.frequency.setTargetAtTime(1800 + f*2, ctx.currentTime, 0.01);
-      },
-      strike(velo=1){
-        g.gain.cancelScheduledValues(ctx.currentTime);
-        g.gain.setValueAtTime(0, ctx.currentTime);
-        g.gain.linearRampToValueAtTime(Math.min(0.9, 0.4+0.5*velo), ctx.currentTime+0.003);
-        g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime+0.85);
-        excite();
-      },
+      setFreq(f){ const period = 1/Math.max(40, f); delay.delayTime.setTargetAtTime(period, ctx.currentTime, 0.002); lp.frequency.setTargetAtTime(1800 + f*2, ctx.currentTime, 0.01); },
+      strike(velo=1){ g.gain.cancelScheduledValues(ctx.currentTime); g.gain.setValueAtTime(0, ctx.currentTime); g.gain.linearRampToValueAtTime(Math.min(0.9, 0.4+0.5*velo), ctx.currentTime+0.003); g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime+0.85); excite(); },
       release(){ g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime+0.1); }
     };
   }
 
   function addFormants(o, freqsQ){
-    const biqs = freqsQ.map(([f,q])=>{
-      const b = ctx.createBiquadFilter(); b.type='bandpass'; b.frequency.value=f; b.Q.value=q; return b;
-    });
-    o.mix.disconnect();
-    let head = o.mix;
+    const biqs = freqsQ.map(([f,q])=>{ const b = ctx.createBiquadFilter(); b.type='bandpass'; b.frequency.value=f; b.Q.value=q; return b; });
+    o.mix.disconnect(); let head = o.mix;
     biqs.forEach(b=>{ head.connect(b); head=b; });
-    const lp = ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=8000;
-    head.connect(lp); lp.connect(o.gain);
-    o.filter = lp;
+    const lp = ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=8000; head.connect(lp); lp.connect(o.gain); o.filter = lp;
   }
 
   function applyPreset(name,o){
@@ -393,29 +366,15 @@ const AudioEngine = (() => {
     else if (name==="Violín"){ o.osc.type='sawtooth'; o.osc2.type='sawtooth'; o.filter.frequency.value=8000; }
     else if (name==="Brass"){ o.osc.type='square'; o.osc2.type='square'; o.filter.frequency.value=5000; }
     else if (name==="Órgano"){ o.osc.type='square'; o.osc2.type='triangle'; o.filter.frequency.value=10000; }
-    else if (name==="Acordeón"){
-      o.osc.type='sawtooth'; o.osc2.type='sawtooth'; o.osc.detune.value=-8; o.osc2.detune.value=+8;
-      addFormants(o, [[450,2.0],[900,1.5],[1800,1.2]]);
-      o.lfo=makeLFO(5,o.gain.gain,0.05,'sine');
-    } else if (name==="Tuba"){
-      o.osc.type='sine'; o.osc2.type='square';
-      addFormants(o, [[220,3.0],[440,2.0],[700,1.2]]);
-      o.envShape={a:0.02,d:0.18,s:0.85};
-    } else if (name==="Trompeta"){
-      o.osc.type='square'; o.osc2.type='sawtooth';
-      addFormants(o, [[900,3.0],[1500,2.0],[2400,1.4]]);
-      o.pitchEnv=true;
-    }
+    else if (name==="Acordeón"){ o.osc.type='sawtooth'; o.osc2.type='sawtooth'; o.osc.detune.value=-8; o.osc2.detune.value=+8; addFormants(o, [[450,2.0],[900,1.5],[1800,1.2]]); o.lfo=makeLFO(5,o.gain.gain,0.05,'sine'); }
+    else if (name==="Tuba"){ o.osc.type='sine'; o.osc2.type='square'; addFormants(o, [[220,3.0],[440,2.0],[700,1.2]]); o.envShape={a:0.02,d:0.18,s:0.85}; }
+    else if (name==="Trompeta"){ o.osc.type='square'; o.osc2.type='sawtooth'; addFormants(o, [[900,3.0],[1500,2.0],[2400,1.4]]); o.pitchEnv=true; }
   }
 
   const createVoice=(instrument="Sintetizador",dest=root)=>{
     if (instrument==="Vihuela" || instrument==="Bajo sexto"){
       const pv = createPluckVoice(dest);
-      return {
-        gain:{gain:{value:0}},
-        strike:(freq, velo)=>{ pv.setFreq(freq); pv.strike(velo); },
-        release:()=>pv.release()
-      };
+      return { gain:{gain:{value:0}}, strike:(freq, velo)=>{ pv.setFreq(freq); pv.strike(velo); }, release:()=>pv.release() };
     }
     const o={};
     o.gain=ctx.createGain(); o.gain.gain.value=0; o.gain.connect(dest);
@@ -455,7 +414,6 @@ const AudioEngine = (() => {
     return o;
   };
 
-  // Percusión
   const drums=(()=>{
     const kick=(vel=1)=>{
       const osc=ctx.createOscillator(); osc.type='sine';
@@ -499,6 +457,7 @@ const AudioEngine = (() => {
     return {kick,snare,hihat,crash};
   })();
 
+  // Grabación
   function startRecording(){
     chunks = [];
     const stream = recorderDest.stream;
@@ -538,10 +497,10 @@ const AudioEngine = (() => {
   };
 })();
 
-/* ======== Escalas / asignaciones ======== */
+/* ======== Música / asignaciones ======== */
 let scale = AudioEngine.buildScale("C4","major");
 const fingerToDegree = { thumb:0, index:1, middle:2, ring:3, pinky:4 };
-const fingerMap = ["thumb","index","middle","ring","pinky"];
+const fingerList = ["thumb","index","middle","ring","pinky"]; // <— una sola vez
 
 function degreeToFreq(deg, bias=0){
   const idx=Math.min(scale.length-1, Math.max(0,deg));
@@ -554,10 +513,9 @@ scaleType.addEventListener('change', updateScale);
 volume.addEventListener('input', e=> AudioEngine.setVolume(parseFloat(e.target.value)));
 
 /* ======= Dibujo landmarks ======= */
-const drawUtils = new DrawingUtils(ctx);
 drawLandmarks = (drawSel.value==="1");
-drawSel.addEventListener('change', e=> { drawLandmarks = e.target.value==="1"; });
-
+drawSel.addEventListener('change', e=> drawLandmarks = e.target.value==="1");
+const drawUtils = new DrawingUtils(ctx);
 function drawHands(res){
   if(!drawLandmarks) return;
   ctx.save();
@@ -613,15 +571,9 @@ function processFace(result){
   if(edge(faceState.blinkL, blinkL)) AudioEngine.drums.hihat(false, 0.9);
   if(edge(faceState.blinkR, blinkR)) AudioEngine.drums.hihat(true, 0.9);
   if(edge(faceState.mouth, mouthOpen, 0.6)) AudioEngine.drums.snare(1.0);
+  if( (blinkL>0.6 && blinkR>0.6) && !(faceState.blinkL && faceState.blinkR) ){ AudioEngine.drums.kick(1.0); }
 
-  if( (blinkL>0.6 && blinkR>0.6) && !(faceState.blinkL && faceState.blinkR) ){
-    AudioEngine.drums.kick(1.0);
-  }
-
-  faceState.blinkL = blinkL>0.55;
-  faceState.blinkR = blinkR>0.55;
-  faceState.mouth  = mouthOpen>0.6;
-
+  faceState.blinkL = blinkL>0.55; faceState.blinkR = blinkR>0.55; faceState.mouth = mouthOpen>0.6;
   hud.innerHTML = `
     <span class="pill">${(blinkL>0.55?'👁️‍🗨️':'👁️')} L</span>
     <span class="pill">${(blinkR>0.55?'👁️‍🗨️':'👁️')} R</span>
@@ -646,20 +598,18 @@ async function loop(){
   requestAnimationFrame(loop);
 }
 
-/* ===== Manos → Notas (con “sin instrumento”) ===== */
-const fingerMap = ["thumb","index","middle","ring","pinky"];
+/* ===== Manos → Notas ===== */
 const smoothY = {};
 function processHands(result){
   if(!result) return;
   for(let i=0;i<result.handedness.length;i++){
-    const handed = result.handedness[i][0].categoryName;
+    const handed = result.handedness[i][0].categoryName; 
     const HK = handed.toLowerCase().startsWith("left")?"L":"R";
     const selected = HK==="L" ? leftInstrument.value : rightInstrument.value;
     const noInstrument = (selected === "(Sin instrumento)");
-    const lm = result.landmarks[i];
-    const g = wristGain(lm);
+    const lm = result.landmarks[i]; const g = wristGain(lm);
 
-    for(const finger of fingerMap){
+    for(const finger of fingerList){
       const key=`${HK}_${finger}`;
       const deg=fingerToDegree[finger];
       const tipIndex={thumb:4,index:8,middle:12,ring:16,pinky:20}[finger];
@@ -680,7 +630,7 @@ function processHands(result){
   }
 }
 
-/* ======= Video/Canvas layout (cover + HiDPI + espejo) ======= */
+/* ======= Layout (cover + HiDPI + espejo) ======= */
 const dpr = Math.max(1, window.devicePixelRatio || 1);
 function requestLayout(){
   const stageRect = stageEl.getBoundingClientRect();
@@ -702,13 +652,9 @@ function requestLayout(){
   canvas.width  = Math.round(drawW * dpr);
   canvas.height = Math.round(drawH * dpr);
 
-  if (mirrorSel.value === "1") {
-    ctx.setTransform(-dpr, 0, 0, dpr, canvas.width, 0);
-  } else {
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  }
+  if (mirrorSel.value === "1") ctx.setTransform(-dpr, 0, 0, dpr, canvas.width, 0);
+  else                         ctx.setTransform( dpr, 0, 0, dpr, 0, 0);
 }
-
 const ro = new ResizeObserver(()=> requestLayout());
 ro.observe(stageEl);
 window.addEventListener('resize', requestLayout);
@@ -724,13 +670,13 @@ async function setupCamera(){
 }
 async function loadModels(){
   const wasmBase = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm";
-  vision = await FilesetResolver.forVisionTasks(wasmBase);
-  handLandmarker = await HandLandmarker.createFromOptions(vision, {
+  const fileset = await FilesetResolver.forVisionTasks(wasmBase);
+  handLandmarker = await HandLandmarker.createFromOptions(fileset, {
     baseOptions: { modelAssetPath: HAND_MODEL_URL }, numHands:2, runningMode:"VIDEO"
   });
-  faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
+  faceLandmarker = await FaceLandmarker.createFromOptions(fileset, {
     baseOptions: { modelAssetPath: FACE_MODEL_URL }, runningMode:"VIDEO",
-    numFaces:1, outputFaceBlendshapes:true, outputFacialTransformationMatrixes:false
+    numFaces:1, outputFaceBlendshapes:true, outputFacialTransformationMatrices:false
   });
 }
 
