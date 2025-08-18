@@ -8,7 +8,7 @@
   :root{
     --fs: 15px; --radius: 16px; --border: #1e2a3a;
     --bg:#0b0f14; --bg2:#0f1520; --panel:#121923; --ink:#e6f0ff; --muted:#91a0b4;
-    --acc:#5dd6ff; --ok:#44d19f; --warn:#ffc857; --err:#ff6b6b; --chip:#0e1522;
+    --chip:#0e1522; --ok:#44d19f; --warn:#ffc857; --err:#ff6b6b;
   }
   *{box-sizing:border-box}
   body{margin:0;background:linear-gradient(180deg,var(--bg),var(--bg2) 40%,var(--bg));
@@ -17,7 +17,7 @@
          border-bottom:1px solid var(--border);z-index:10}
   .wrap{max-width:1200px;margin:0 auto;padding:14px 16px;display:grid;gap:12px}
   .controls{display:grid;gap:10px;grid-template-columns:repeat(12,1fr);align-items:center}
-  .brand{grid-column:span 4;display:flex;gap:10px;align-items:center}
+  .brand{grid-column:span 5;display:flex;gap:10px;align-items:center}
   .brand b{font-size:calc(var(--fs) + 3px)}
   .btn{appearance:none;border:none;border-radius:12px;padding:10px 14px;font-weight:700;cursor:pointer;
        background:linear-gradient(180deg,#20a4f3,#1282d6);color:#fff}
@@ -31,7 +31,6 @@
   .status-dot{display:inline-block;width:10px;height:10px;border-radius:50%}
   .ok{background:var(--ok)} .err{background:var(--err)} .warn{background:var(--warn)}
   .hint{color:var(--warn);font-size:12px}
-
   header.compact .collapsible{display:none}
 
   main{display:grid;grid-template-columns:1.35fr .65fr;gap:14px;max-width:1200px;margin:14px auto;padding:0 16px}
@@ -57,18 +56,15 @@
       <span class="status-dot warn" id="camStatus"></span>
       <b>AirBand XR</b>
       <span class="tag">Webcam → Gestos → Sonido en tiempo real</span>
-      <button id="compactBtn" class="btn ghost">Compactar barra</button>
+      <button id="compactBtn" class="btn ghost" title="Colapsar/expandir controles">Compactar barra</button>
     </div>
 
-    <div class="row" style="grid-column: span 8">
+    <div class="row" style="grid-column: span 7">
       <button id="startBtn" class="btn">Iniciar cámara & audio</button>
       <button id="stopBtn" class="btn secondary" disabled>Detener</button>
       <button id="muteBtn" class="btn secondary">Silencio</button>
-      <button id="testBtn" class="btn ghost">Probar audio</button>
-      <button id="recBtn" class="btn ghost" disabled>● Grabar</button>
-      <button id="recStopBtn" class="btn ghost" disabled>■ Detener grabación</button>
-      <span class="tag" id="recTimer">00:00</span>
-      <a id="recDownload" class="tag" href="#" download="airband.webm" style="display:none">Descargar 🎧</a>
+      <button id="testBtn" class="btn ghost" title="Beep de prueba">Probar audio</button>
+      <button id="testDrumsBtn" class="btn ghost" title="Percusión de prueba">Probar percusión</button>
       <span class="hint" id="envHint"></span>
     </div>
 
@@ -128,20 +124,20 @@
 <footer>Hecho con MediaPipe Tasks (Hands & Face) + WebAudio. Todo local.</footer>
 
 <script type="module">
-/* ===== IMPORTS (versión fija) ===== */
+/* ---------- IMPORTS (versión fija) ---------- */
 import { FilesetResolver, HandLandmarker, FaceLandmarker, DrawingUtils }
   from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3";
 
-/* ===== MODELOS ===== */
+/* ---------- MODELOS OFICIALES ---------- */
 const HAND_MODEL_URL = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task";
 const FACE_MODEL_URL = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task";
 
-/* ===== UI refs ===== */
+/* ---------- UI ---------- */
 const envHint=document.getElementById('envHint');
 if(!location.protocol.startsWith('https')&&location.hostname!=='localhost'){envHint.textContent="Necesitas HTTPS o localhost para cámara.";}
+
 const startBtn=document.getElementById('startBtn'), stopBtn=document.getElementById('stopBtn'), muteBtn=document.getElementById('muteBtn');
-const testBtn=document.getElementById('testBtn');
-const recBtn=document.getElementById('recBtn'), recStopBtn=document.getElementById('recStopBtn'), recTimer=document.getElementById('recTimer'), recDownload=document.getElementById('recDownload');
+const testBtn=document.getElementById('testBtn'), testDrumsBtn=document.getElementById('testDrumsBtn');
 const camStatus=document.getElementById('camStatus'), compactBtn=document.getElementById('compactBtn'), headerEl=document.getElementById('hdr');
 
 const leftInstrument=document.getElementById('leftInstrument');
@@ -158,36 +154,40 @@ const ctx=canvas.getContext('2d');
 const hud=document.getElementById('hud');
 const stageEl=document.getElementById('stage');
 
-/* ===== Estado ===== */
+/* ---------- Estado ---------- */
 let running=false, stream=null, handLandmarker=null, faceLandmarker=null;
 let drawLandmarks=true;
 const dpr=Math.max(1,window.devicePixelRatio||1);
 
-/* ===== Sonidos ===== */
+/* ---------- Instrumentos ---------- */
 const SOUND_SETS={
   electronico:["(Sin instrumento)","Sintetizador","Piano","Guitarra","Violín","Brass","Órgano"],
   regional:["(Sin instrumento)","Acordeón","Tuba","Trompeta","Vihuela","Bajo sexto"]
 };
 let soundSet=localStorage.getItem('soundSet')||'electronico';
 soundSetSel.value=soundSet;
+
+function firstPlayable(arr){ return arr.find(x=>x!=="(Sin instrumento)") || arr[0]; }
 function setInstrumentOptions(setName){
   const arr=SOUND_SETS[setName];
-  const fill=sel=>{sel.innerHTML=arr.map(v=>`<option>${v}</option>`).join('');};
+  const fill=sel=>{ sel.innerHTML=arr.map(v=>`<option>${v}</option>`).join(''); sel.value=firstPlayable(arr); };
   fill(leftInstrument); fill(rightInstrument);
 }
 setInstrumentOptions(soundSet);
-soundSetSel.addEventListener('change',()=>{soundSet=soundSetSel.value;localStorage.setItem('soundSet',soundSet);setInstrumentOptions(soundSet);});
+soundSetSel.addEventListener('change',()=>{
+  soundSet=soundSetSel.value;localStorage.setItem('soundSet',soundSet);
+  setInstrumentOptions(soundSet);
+});
 
-/* ===== AudioEngine ===== */
+/* ---------- AudioEngine ---------- */
 const AudioEngine=(()=>{
   const AC=window.AudioContext||window.webkitAudioContext;
   const ctx=new AC({latencyHint:'interactive'});
   const master=ctx.createGain(); master.gain.value=parseFloat(volume.value);
   const root=ctx.createGain(); root.connect(master); master.connect(ctx.destination);
 
-  // Recorder
+  // Recorder (simple, sin UI aquí)
   const dest=ctx.createMediaStreamDestination(); master.connect(dest);
-  let rec=null, chunks=[], tId=null, t0=0;
 
   function nf(note){const A4=440,map={C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11};const m=note.match(/^([A-G]#?|Bb|Db|Gb)(\d)$/);const n=map[m[1]],o=+m[2];return A4*Math.pow(2,(n-9+(o-4)*12)/12);}
   function bs(root="C4",type="major"){const iv={major:[0,2,4,5,7,9,11,12],minor:[0,2,3,5,7,8,10,12],pentatonic:[0,2,4,7,9,12],blues:[0,3,5,6,7,10,12]}[type];const base={'C':0,'C#':1,'D':2,'D#':3,'E':4,'F':5,'F#':6,'G':7,'G#':8,'A':9,'A#':10,'B':11,'Bb':10,'Db':1,'Gb':6,'Ab':8,'Eb':3};const m=root.match(/^([A-G]#?|Bb|Db|Gb)(\d)$/),b=base[m[1]],oct=+m[2],names=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];return iv.map(semi=>{const t=b+semi+oct*12;return `${names[(t%12+12)%12]}${Math.floor(t/12)}`;});}
@@ -218,9 +218,9 @@ const AudioEngine=(()=>{
     o.mix=ctx.createGain();o.mix.gain.value=.75;o.osc.connect(o.mix);o.osc2.connect(o.mix);o.mix.connect(o.filter);
     preset(inst,o);
     o.setFreq=f=>{o.osc.frequency.exponentialRampToValueAtTime(Math.max(40,f),ctx.currentTime+0.01);o.osc2.frequency.exponentialRampToValueAtTime(Math.max(40,f*0.999),ctx.currentTime+0.01);};
-    o.env=(t=0.75,a=0.006,d=0.05,s=0.55)=>{const n=ctx.currentTime;o.gain.gain.cancelScheduledValues(n);o.gain.gain.linearRampToValueAtTime(t,n+a);o.gain.gain.linearRampToValueAtTime(t*s,n+a+d);};
+    o.env=(t=0.85,a=0.006,d=0.05,s=0.55)=>{const n=ctx.currentTime;o.gain.gain.cancelScheduledValues(n);o.gain.gain.linearRampToValueAtTime(t,n+a);o.gain.gain.linearRampToValueAtTime(t*s,n+a+d);};
     o.release=(r=0.12)=>{const n=ctx.currentTime;o.gain.gain.cancelScheduledValues(n);o.gain.gain.setTargetAtTime(0,n,r);};
-    o.strike=(hz=440,vel=1)=>{o.setFreq(hz);o.env(Math.min(0.95,0.4+0.6*vel),0.004,0.05,0.6);};
+    o.strike=(hz=440,vel=1)=>{o.setFreq(hz);o.env(Math.min(0.95,0.5+0.6*vel),0.004,0.05,0.6);};
     return o;
   }
 
@@ -231,29 +231,24 @@ const AudioEngine=(()=>{
     return {kick,snare,hihat};
   })();
 
-  function startRec(){chunks=[];const s=dest.stream;const mime=MediaRecorder.isTypeSupported('audio/webm;codecs=opus')?'audio/webm;codecs=opus':'audio/webm';rec=new MediaRecorder(s,{mimeType:mime, audioBitsPerSecond:192000});rec.ondataavailable=e=>{if(e.data.size>0)chunks.push(e.data)};rec.onstop=()=>{const blob=new Blob(chunks,{type:rec.mimeType});const url=URL.createObjectURL(blob);recDownload.href=url;recDownload.style.display='inline';};rec.start();t0=Date.now();tId=setInterval(()=>{const s=Math.floor((Date.now()-t0)/1000);recTimer.textContent=`${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;},200);}
-  function stopRec(){if(rec&&rec.state!=='inactive'){rec.stop();clearInterval(tId);tId=null;}}
-
   return {ctx, root, master, createVoice:voice, drums, noteFreq:nf, buildScale:bs,
-          setVolume:v=>master.gain.value=v, startRecording:startRec, stopRecording:stopRec};
+          setVolume:v=>master.gain.value=v};
 })();
 
-/* ===== Música / escala ===== */
+/* ---------- Escalas ---------- */
 let scale=AudioEngine.buildScale("C4","major");
 const fingerToDegree={thumb:0,index:1,middle:2,ring:3,pinky:4};
 const fingerList=["thumb","index","middle","ring","pinky"];
 function degreeToFreq(deg,bias=0){const note=scale[Math.min(scale.length-1,Math.max(0,deg))];return AudioEngine.noteFreq(note)*Math.pow(2,bias/12);}
 
-/* ===== Dibujo ===== */
+/* ---------- Dibujo ---------- */
 drawLandmarks=(drawSel.value==="1");
 drawSel.addEventListener('change',()=>drawLandmarks=(drawSel.value==="1"));
 const drawer=new DrawingUtils(ctx);
-function paint(fn){ctx.save(); // usar transform espejo/HiDPI ya aplicada
-  fn(); ctx.restore();}
-function drawHands(res){ if(!drawLandmarks) return; paint(()=>{res?.landmarks?.forEach(lm=>{drawer.drawConnectors(lm,HandLandmarker.HAND_CONNECTIONS,{color:"#5dd6ff"});drawer.drawLandmarks(lm,{color:"#44d19f",radius:2.2});});});}
-function drawFace(res){ if(!drawLandmarks) return; paint(()=>{res?.faceLandmarks?.forEach(lm=>drawer.drawLandmarks(lm,{color:"#ffc857",radius:1.8}));});}
+function drawHands(res){ if(!drawLandmarks) return; res?.landmarks?.forEach(lm=>{drawer.drawConnectors(lm,HandLandmarker.HAND_CONNECTIONS,{color:"#5dd6ff"});drawer.drawLandmarks(lm,{color:"#44d19f",radius:2.2});});}
+function drawFace(res){ if(!drawLandmarks) return; res?.faceLandmarks?.forEach(lm=>drawer.drawLandmarks(lm,{color:"#ffc857",radius:1.8}));}
 
-/* ===== Manos utils (umbrales relajados) ===== */
+/* ---------- Heurísticas mano (más sensibles) ---------- */
 function isFingerExtended(lm,f,HK){
   const idx={thumb:[1,2,3,4],index:[5,6,7,8],middle:[9,10,11,12],ring:[13,14,15,16],pinky:[17,18,19,20]}[f];
   const [mcp,pip,,tip]=idx.map(i=>lm[i]);
@@ -263,27 +258,27 @@ function isFingerExtended(lm,f,HK){
 function wristGain(lm){const w=lm[0];return Math.min(1,Math.max(0,1-w.y));}
 const lerp=(a,b,t)=>a+(b-a)*t;
 
-/* ===== Voces ===== */
+/* ---------- Voces ---------- */
 const activeVoices={};
 function ensureVoice(key,inst){if(!activeVoices[key]) activeVoices[key]=AudioEngine.createVoice(inst);return activeVoices[key];}
 function stopVoice(key){if(activeVoices[key]) activeVoices[key].release();}
 
-/* ===== Cara → Percusión (sin lengua) ===== */
+/* ---------- Cara → Percusión (sin lengua) ---------- */
 const faceState={blinkL:false,blinkR:false,mouth:false};
 const bmap=bs=>{const m={};bs?.categories?.forEach(c=>m[c.categoryName]=c.score);return m;};
-const edge=(p,n,th=0.55)=>(!p && n>th);
+const edge=(p,n,th=0.5)=>(!p && n>th); // umbral un poco más bajo
 function processFace(res){
   if(!res) return;
   const bm=bmap(res.faceBlendshapes?.[0]||{});
   const L=bm["eyeBlinkLeft"]??0, R=bm["eyeBlinkRight"]??0, M=(bm["mouthOpen"]??0)+(bm["jawOpen"]??0)*0.5;
-  if(edge(faceState.blinkL,L)) AudioEngine.drums.hihat(false,0.9);
-  if(edge(faceState.blinkR,R)) AudioEngine.drums.hihat(true,0.9);
-  if(edge(faceState.mouth,M,0.6)) AudioEngine.drums.snare(1.0);
+  if(edge(faceState.blinkL,L)) AudioEngine.drums.hihat(false,0.95);
+  if(edge(faceState.blinkR,R)) AudioEngine.drums.hihat(true,0.95);
+  if(edge(faceState.mouth,M,0.5)) AudioEngine.drums.snare(1.0);
   if((L>0.6&&R>0.6) && !(faceState.blinkL && faceState.blinkR)) AudioEngine.drums.kick(1.0);
-  faceState.blinkL=L>0.55; faceState.blinkR=R>0.55; faceState.mouth=M>0.6;
+  faceState.blinkL=L>0.5; faceState.blinkR=R>0.5; faceState.mouth=M>0.5;
 }
 
-/* ===== Manos → Notas ===== */
+/* ---------- Manos → Notas ---------- */
 const smoothY={};
 function processHands(result){
   if(!result) return;
@@ -307,7 +302,7 @@ function processHands(result){
   hud.innerHTML=`<span class="pill">👋 manos: ${handsCount}</span>`;
 }
 
-/* ===== Layout (cover + HiDPI + mirror) ===== */
+/* ---------- Layout (cover + HiDPI + mirror) ---------- */
 function relayout(){
   const r=stageEl.getBoundingClientRect(), sw=r.width, sh=r.height;
   const vw=webcamEl.videoWidth||1280, vh=webcamEl.videoHeight||720;
@@ -320,7 +315,7 @@ new ResizeObserver(relayout).observe(stageEl);
 window.addEventListener('resize', relayout);
 mirrorSel.addEventListener('change', relayout);
 
-/* ===== Cámara / Modelos ===== */
+/* ---------- Cámara / Modelos ---------- */
 async function setupCamera(){
   stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:1280},height:{ideal:720},frameRate:{ideal:60,max:60}},audio:false});
   webcamEl.srcObject=stream; await webcamEl.play(); relayout();
@@ -331,7 +326,7 @@ async function loadModels(){
   faceLandmarker=await FaceLandmarker.createFromOptions(fileset,{baseOptions:{modelAssetPath:FACE_MODEL_URL},runningMode:"VIDEO",numFaces:1,outputFaceBlendshapes:true,outputFacialTransformationMatrices:false});
 }
 
-/* ===== Loop ===== */
+/* ---------- Loop ---------- */
 let lastInfer=0; const SPEEDS={speed:1/45,balanced:1/30,quality:1/20};
 async function loop(){
   if(!running) return;
@@ -347,18 +342,20 @@ async function loop(){
   requestAnimationFrame(loop);
 }
 
-/* ===== Controles ===== */
-leftInstrument.innerHTML=SOUND_SETS[soundSet].map(v=>`<option>${v}</option>`).join('');
-rightInstrument.innerHTML=SOUND_SETS[soundSet].map(v=>`<option>${v}</option>`).join('');
+/* ---------- Controles ---------- */
 volume.addEventListener('input',e=>AudioEngine.setVolume(parseFloat(e.target.value)));
 
-document.getElementById('testBtn').addEventListener('click', async ()=>{
+testBtn.addEventListener('click', async ()=>{
   await AudioEngine.ctx.resume();
   const osc=AudioEngine.ctx.createOscillator(), g=AudioEngine.ctx.createGain(); g.gain.value=0.001;
   osc.type='sine'; osc.frequency.value=880; osc.connect(g); g.connect(AudioEngine.master);
   g.gain.linearRampToValueAtTime(0.4, AudioEngine.ctx.currentTime+0.01);
   g.gain.exponentialRampToValueAtTime(0.0001, AudioEngine.ctx.currentTime+0.35);
   osc.start(); osc.stop(AudioEngine.ctx.currentTime+0.4);
+});
+testDrumsBtn.addEventListener('click', async ()=>{
+  await AudioEngine.ctx.resume();
+  AudioEngine.drums.kick(1); setTimeout(()=>AudioEngine.drums.snare(1),160); setTimeout(()=>AudioEngine.drums.hihat(true,1),320);
 });
 
 startBtn.addEventListener('click', async ()=>{
@@ -367,7 +364,6 @@ startBtn.addEventListener('click', async ()=>{
     startBtn.disabled=true;
     await setupCamera(); await loadModels();
     camStatus.className="status-dot ok"; running=true; stopBtn.disabled=false;
-    recBtn.disabled=false; recDownload.style.display='none'; recTimer.textContent='00:00';
     loop();
   }catch(err){ console.error(err); camStatus.className="status-dot err"; envHint.textContent="Error: "+(err?.message||err); startBtn.disabled=false; }
 });
@@ -379,14 +375,9 @@ stopBtn.addEventListener('click', ()=>{
 });
 muteBtn.addEventListener('click',()=>{AudioEngine.setVolume(0); volume.value=0;});
 
-recBtn.addEventListener('click',()=>{recBtn.disabled=true; recStopBtn.disabled=false; recDownload.style.display='none'; recTimer.textContent='00:00'; AudioEngine.startRecording();});
-recStopBtn.addEventListener('click',()=>{recStopBtn.disabled=true; recBtn.disabled=false; AudioEngine.stopRecording();});
-
-document.getElementById('perfMode').addEventListener('change',()=>{});
-document.getElementById('draw').addEventListener('change',()=>drawLandmarks=(drawSel.value==="1"));
 compactBtn.addEventListener('click',()=>{const c=!headerEl.classList.contains('compact'); headerEl.classList.toggle('compact',c); compactBtn.textContent=c?'Expandir barra':'Compactar barra';});
 
-console.log('[AirBand] listo. Da clic en “Iniciar cámara & audio”.');
+console.log('[AirBand] listo. 1) Inicia cámara, 2) verifica beep/percusión, 3) juega con los dedos/mano y abre la boca.');
 </script>
 </body>
 </html>
